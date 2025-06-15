@@ -15,7 +15,7 @@ import { CloudfrontModule } from './cloudfront/cloudfront.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), 
+    ConfigModule.forRoot({isGlobal: true}), 
     TypeOrmModule.forRoot(typeOrmConfig),
     PrismaModule,
     AdminModule,
