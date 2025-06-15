@@ -13,11 +13,6 @@ import { FileModule } from './file/file.module';
 import { NoticesModule } from './notices/notices.module';
 import { CloudfrontModule } from './cloudfront/cloudfront.module';
 
-import AdminJS from 'adminjs';
-const AdminTypeorm = require('@adminjs/typeorm');
-const { Database, Resource } = AdminTypeorm;
-
-AdminJS.registerAdapter({ Database, Resource });
 
 @Module({
   imports: [
