@@ -13,7 +13,6 @@ import { FileModule } from './file/file.module';
 import { NoticesModule } from './notices/notices.module';
 import { CloudfrontModule } from './cloudfront/cloudfront.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), 
