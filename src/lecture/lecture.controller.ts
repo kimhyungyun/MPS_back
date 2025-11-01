@@ -1,28 +1,16 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, UseGuards, Res, NotFoundException } from '@nestjs/common';
+import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { LectureService } from './lecture.service';
-import { CreateLectureDto } from './dto/create-lecture.dto';
-import { UpdateLectureDto } from './dto/update-lecture.dto';
-import { SignedUrlService } from '../config/signed-url.service';
+import { Response } from 'express';
+import { SignedUrlService } from '@/signedurl/signed-url.service';
+
 
 @Controller('lectures')
 export class LectureController {
   constructor(
     private readonly lectureService: LectureService,
-    private readonly signedUrlService: SignedUrlService
+    private readonly signedUrlService: SignedUrlService,
   ) {}
-
-  @Post()
-  create(@Body() createLectureDto: CreateLectureDto) {
-    return this.lectureService.create(createLectureDto);
-  }
 
   @Get()
   findAll() {
@@ -30,24 +18,35 @@ export class LectureController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.lectureService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.lectureService.findOne(id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateLectureDto: UpdateLectureDto) {
-    return this.lectureService.update(+id, updateLectureDto);
-  }
+  @Get(':id/play-auth')
+  @UseGuards(JwtAuthGuard)
+  async issueCloudfrontCookie(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const lecture = await this.lectureService.findOne(id);
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.lectureService.remove(+id);
-  }
+    if (!lecture.video_folder || !lecture.video_name) {
+      throw new NotFoundException('Lecture video path missing.');
+    }
 
-  @Get(':id/signed-url')
-  getSignedVideoUrl(@Param('id') id: string) {
-    const videoPath = `/videos/${id}.m3u8`; // 혹은 DB에서 경로 조회
-    const signedUrl = this.signedUrlService.generateSignedUrl(videoPath);
-    return { signedUrl };
+await this.signedUrlService.setCloudFrontSignedCookie(
+  res,
+  lecture.video_folder,
+  lecture.video_name
+);
+
+    return {
+      ok: true,
+      streamUrl: this.signedUrlService.buildStreamUrl(
+        lecture.video_folder,
+        lecture.video_name
+      ),
+      ttlSec: Number(process.env.CLOUDFRONT_POLICY_TTL_SECONDS || 1800),
+    };
   }
-} 
+}

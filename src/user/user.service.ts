@@ -1,87 +1,87 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entity/user.entity';
+import { UserRole } from './enum/user-role.enum';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    private prisma: PrismaService
   ) {}
 
-  async findByUserId(id: string): Promise<User | null> {
-    return this.userRepository.findOne({
-      where: { mb_id: id },
-    });
+  async findByUserId(id: number): Promise<User | null> {
+    return this.userRepository.findOneBy({ id });
   }
+  
+
 
   async create(createUserDto: CreateUserDto) {
     const now = new Date();
-    return this.prisma.g5_member.create({
-      data: {
-        mb_id: createUserDto.mb_id,
-        mb_password: createUserDto.mb_password,
-        mb_name: createUserDto.mb_name,
-        mb_nick: createUserDto.mb_nick,
-        mb_nick_date: now,
-        mb_email: createUserDto.mb_email,
-        mb_hp: createUserDto.mb_hp || '',
-        mb_sex: createUserDto.mb_sex || '',
-        mb_birth: createUserDto.mb_birth || '',
-        mb_addr1: createUserDto.mb_addr1 || '',
-        mb_addr2: createUserDto.mb_addr2 || '',
-        mb_level: 1,
-        mb_password2: createUserDto.mb_password,
-        mb_homepage: '',
-        mb_tel: '',
-        mb_certify: '',
-        mb_adult: 0,
-        mb_dupinfo: '',
-        mb_zip1: '',
-        mb_zip2: '',
-        mb_addr3: '',
-        mb_addr_jibeon: '',
-        mb_recommend: '',
-        mb_point: 0,
-        mb_today_login: now,
-        mb_login_ip: '',
-        mb_datetime: now,
-        mb_ip: '',
-        mb_leave_date: '',
-        mb_intercept_date: '',
-        mb_email_certify: now,
-        mb_email_certify2: '',
-        mb_memo_call: '',
-        mb_memo_cnt: 0,
-        mb_scrap_cnt: 0,
-        mb_1: '',
-        mb_2: '',
-        mb_3: '',
-        mb_4: '',
-        mb_5: '',
-        mb_6: '',
-        mb_7: '',
-        mb_8: '',
-        mb_9: '',
-        mb_10: '',
-        mb_signature: '',
-        mb_memo: '',
-        mb_lost_certify: '',
-        mb_profile: '',
-        mb_open_date: now,
-      },
+    const hashedPassword = await bcrypt.hash(createUserDto.mb_password, 10);
+    
+    const user = this.userRepository.create({
+      mb_id: createUserDto.mb_id,
+      mb_password: hashedPassword,
+      mb_name: createUserDto.mb_name,
+      mb_nick: createUserDto.mb_nick,
+      mb_nick_date: now.toISOString().split('T')[0],
+      mb_email: createUserDto.mb_email,
+      mb_hp: createUserDto.mb_hp || '',
+      mb_sex: createUserDto.mb_sex || '',
+      mb_birth: createUserDto.mb_birth || '',
+      mb_addr1: createUserDto.mb_addr1 || '',
+      mb_addr2: createUserDto.mb_addr2 || '',
+      mb_level: UserRole.USER,
+      mb_homepage: '',
+      mb_tel: '',
+      mb_certify: '',
+      mb_adult: 0,
+      mb_dupinfo: '',
+      mb_zip1: '',
+      mb_zip2: '',
+      mb_addr3: '',
+      mb_addr_jibeon: '',
+      mb_recommend: '',
+      mb_point: 0,
+      mb_today_login: now,
+      mb_login_ip: '',
+      mb_datetime: now,
+      mb_ip: '',
+      mb_leave_date: '',
+      mb_intercept_date: '',
+      mb_email_certify: now,
+      mb_email_certify2: '',
+      mb_memo_call: '',
+      mb_memo_cnt: 0,
+      mb_scrap_cnt: 0,
+      mb_1: '',
+      mb_2: '',
+      mb_3: '',
+      mb_4: '',
+      mb_5: '',
+      mb_6: '',
+      mb_7: '',
+      mb_8: '',
+      mb_9: '',
+      mb_10: '',
+      mb_signature: '',
+      mb_memo: '',
+      mb_lost_certify: '',
+      mb_profile: '',
+      mb_open_date: now.toISOString().split('T')[0],
     });
+
+    return this.userRepository.save(user);
   }
 
   async findAll() {
-    return this.prisma.g5_member.findMany();
+    return this.userRepository.find();
   }
 
   async findOne(id: number): Promise<User> {
@@ -93,7 +93,7 @@ export class UserService {
   }
 
   async findByMbId(mb_id: string) {
-    const user = await this.prisma.g5_member.findUnique({
+    const user = await this.userRepository.findOne({
       where: { mb_id },
       select: {
         mb_id: true,
@@ -134,36 +134,29 @@ export class UserService {
 
   async update(mb_id: string, updateUserDto: UpdateUserDto) {
     try {
-      const data: any = {};
-      
-      if (updateUserDto.mb_password) {
-        const hashedPassword = await bcrypt.hash(updateUserDto.mb_password, 10);
-        data.mb_password = hashedPassword;
-        data.mb_password2 = hashedPassword;
-      }
-      
-      if (updateUserDto.mb_name) data.mb_name = updateUserDto.mb_name;
-      if (updateUserDto.mb_nick) {
-        data.mb_nick = updateUserDto.mb_nick;
-        data.mb_nick_date = new Date();
-      }
-      if (updateUserDto.mb_email) data.mb_email = updateUserDto.mb_email;
-      if (updateUserDto.mb_hp) data.mb_hp = updateUserDto.mb_hp;
-      if (updateUserDto.mb_sex) data.mb_sex = updateUserDto.mb_sex;
-      if (updateUserDto.mb_birth) data.mb_birth = updateUserDto.mb_birth;
-      if (updateUserDto.mb_addr1) data.mb_addr1 = updateUserDto.mb_addr1;
-      if (updateUserDto.mb_addr2) data.mb_addr2 = updateUserDto.mb_addr2;
-
-      const updatedUser = await this.prisma.g5_member.update({
-        where: { mb_id },
-        data,
-      });
-
-      if (!updatedUser) {
+      const user = await this.userRepository.findOne({ where: { mb_id } });
+      if (!user) {
         throw new NotFoundException('사용자를 찾을 수 없습니다.');
       }
 
-      return updatedUser;
+      if (updateUserDto.mb_password) {
+        const hashedPassword = await bcrypt.hash(updateUserDto.mb_password, 10);
+        user.mb_password = hashedPassword;
+      }
+      
+      if (updateUserDto.mb_name) user.mb_name = updateUserDto.mb_name;
+      if (updateUserDto.mb_nick) {
+        user.mb_nick = updateUserDto.mb_nick;
+        user.mb_nick_date = new Date().toISOString().split('T')[0];
+      }
+      if (updateUserDto.mb_email) user.mb_email = updateUserDto.mb_email;
+      if (updateUserDto.mb_hp) user.mb_hp = updateUserDto.mb_hp;
+      if (updateUserDto.mb_sex) user.mb_sex = updateUserDto.mb_sex;
+      if (updateUserDto.mb_birth) user.mb_birth = updateUserDto.mb_birth;
+      if (updateUserDto.mb_addr1) user.mb_addr1 = updateUserDto.mb_addr1;
+      if (updateUserDto.mb_addr2) user.mb_addr2 = updateUserDto.mb_addr2;
+
+      return await this.userRepository.save(user);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -174,9 +167,11 @@ export class UserService {
 
   async remove(mb_id: string) {
     try {
-      return await this.prisma.g5_member.delete({
-        where: { mb_id },
-      });
+      const user = await this.userRepository.findOne({ where: { mb_id } });
+      if (!user) {
+        throw new NotFoundException('사용자를 찾을 수 없습니다.');
+      }
+      return await this.userRepository.remove(user);
     } catch (error) {
       throw new NotFoundException('사용자를 찾을 수 없습니다.');
     }

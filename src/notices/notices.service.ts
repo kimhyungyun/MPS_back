@@ -8,39 +8,42 @@ export class NoticesService {
   constructor(private prisma: PrismaService) {}
 
   async create(createNoticeDto: CreateNoticeDto) {
-    return this.prisma.notices.create({
+    return this.prisma.post.create({
       data: {
         title: createNoticeDto.title,
         content: createNoticeDto.content,
-        is_important: createNoticeDto.is_important || false,
-        date: new Date(),
+        category: 'notice',
+        userId: null,
       },
     });
   }
 
   async findAll() {
-    return this.prisma.notices.findMany({
+    return this.prisma.post.findMany({
+      where: {
+        category: 'notice'
+      },
       orderBy: {
-        date: 'desc',
+        created_at: 'desc',
       },
     });
   }
 
   async findOne(id: number) {
-    return this.prisma.notices.findUnique({
+    return this.prisma.post.findUnique({
       where: { id },
     });
   }
 
   async update(id: number, updateNoticeDto: UpdateNoticeDto) {
-    return this.prisma.notices.update({
+    return this.prisma.post.update({
       where: { id },
       data: updateNoticeDto,
     });
   }
 
   async remove(id: number) {
-    return this.prisma.notices.delete({
+    return this.prisma.post.delete({
       where: { id }
     });
   }

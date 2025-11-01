@@ -28,8 +28,12 @@ export class Lecture {
   @Column()
   thumbnail_url: string;
 
-  @Column()
-  video_url: string;
+  @Column({ nullable: true })
+  video_folder: string;
+
+  @Column({ nullable: true })
+  video_name: string;
+
 
   @Column({
     type: 'enum',

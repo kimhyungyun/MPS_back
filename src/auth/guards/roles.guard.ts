@@ -1,23 +1,31 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { UnauthorizedException } from '@nestjs/common';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const roles = this.reflector.get<string[]>('roles', context.getHandler());
-    if (!roles) {
+    const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
+    if (!requiredRoles) {
       return true;
     }
+
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const user = request.user; // 요청의 사용자 정보
 
     if (!user) {
-      return false;
+      throw new UnauthorizedException('사용자가 존재하지 않습니다.');
     }
 
-    // mb_level이 8 이상인 경우 admin 역할을 가짐
-    return user.mb_level >= 8;
+    // 사용자 역할이 requiredRoles에 포함되어 있는지 확인
+    const hasRole = requiredRoles.some(role => user.mb_level === role);
+
+    if (!hasRole) {
+      throw new UnauthorizedException('권한이 없습니다.');
+    }
+
+    return true;
   }
-} 
+}

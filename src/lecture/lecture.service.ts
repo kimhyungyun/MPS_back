@@ -1,108 +1,89 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Lecture } from '@/lecture/entity/lecture.entity';
-import { CreateLectureDto } from '@/lecture/dto/create-lecture.dto';
-import { UpdateLectureDto } from '@/lecture/dto/update-lecture.dto';
-
-import { LectureCategory } from '@/lecture/entity/lecture-category.entity';
+import { Lecture } from './entity/lecture.entity';
+import { CreateLectureDto } from './dto/create-lecture.dto';
+import { UpdateLectureDto } from './dto/update-lecture.dto';
+import { LectureCategory } from './entity/lecture-category.entity';
 import { User } from '@/user/entity/user.entity';
 
 @Injectable()
 export class LectureService {
   constructor(
     @InjectRepository(Lecture)
-    private lectureRepository: Repository<Lecture>,
+    private readonly lectureRepository: Repository<Lecture>,
+
     @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private readonly userRepository: Repository<User>,
+
     @InjectRepository(LectureCategory)
-    private categoryRepository: Repository<LectureCategory>,
+    private readonly categoryRepository: Repository<LectureCategory>,
   ) {}
 
-  async create(createLectureDto: CreateLectureDto): Promise<Lecture> {
-    const instructor = await this.userRepository.findOne({
-      where: { mb_id: createLectureDto.instructorId },
-    });
-    if (!instructor) {
-      throw new NotFoundException(`Instructor not found`);
-    }
+  // ✅ 강의 생성 시 instructor 자동 지정
+  async create(createLectureDto: CreateLectureDto, user: User): Promise<Lecture> {
+    const { categoryId, ...lectureData } = createLectureDto;
 
-    const category = await this.categoryRepository.findOne({
-      where: { id: createLectureDto.categoryId },
-    });
+    const category = await this.categoryRepository.findOneBy({ id: categoryId });
     if (!category) {
-      throw new NotFoundException(`Category not found`);
+      throw new NotFoundException('Category not found');
     }
 
-    const { instructorId, categoryId, ...lectureData } = createLectureDto;
     const lecture = this.lectureRepository.create({
       ...lectureData,
-      instructor,
+      instructor: user,
       category,
     });
-    return await this.lectureRepository.save(lecture);
+
+    return this.lectureRepository.save(lecture);
   }
 
-  async findAll(): Promise<any[]> {
-    const lectures = await this.lectureRepository.find({
+  // ✅ 전체 강의 목록 조회
+  async findAll(): Promise<Lecture[]> {
+    return this.lectureRepository.find({
       relations: ['instructor', 'category'],
     });
-    return lectures.map(lecture => ({
-      id: lecture.id,
-      title: lecture.title,
-      description: lecture.description,
-      s3Url: lecture.video_url || '',
-    }));
   }
 
-  async findOne(id: number): Promise<any> {
+  // ✅ 단일 강의 조회
+  async findOne(id: number): Promise<Lecture> {
+    const lecture = await this.lectureRepository.findOne({ where: { id } });
+    if (!lecture) {
+      throw new NotFoundException('Lecture not found');
+    }
+    return lecture;
+  }
+
+  // ✅ 단일 강의 + 연관 관계 조회
+  async findOneWithRelations(id: number): Promise<Lecture> {
     const lecture = await this.lectureRepository.findOne({
       where: { id },
       relations: ['instructor', 'category'],
     });
     if (!lecture) {
-      throw new NotFoundException(`Lecture not found`);
+      throw new NotFoundException('Lecture not found');
     }
-    return {
-      id: lecture.id,
-      title: lecture.title,
-      description: lecture.description,
-      s3Url: lecture.video_url || '',
-    };
+    return lecture;
   }
 
-  async update(
-    id: number,
-    updateLectureDto: UpdateLectureDto,
-  ): Promise<Lecture> {
-    const lecture = await this.findOne(id);
-    const { instructorId, categoryId, ...updateData } =
-      updateLectureDto as CreateLectureDto;
-
-    if (instructorId) {
-      const instructor = await this.userRepository.findOne({
-        where: { mb_id: instructorId },
-      });
-      if (!instructor) {
-        throw new NotFoundException(`Instructor not found`);
-      }
-      lecture.instructor = instructor;
-    }
+  // ✅ 강의 수정
+  async update(id: number, updateLectureDto: UpdateLectureDto): Promise<Lecture> {
+    const lecture = await this.findOneWithRelations(id);
+    const { categoryId, ...updateData } = updateLectureDto as CreateLectureDto;
 
     if (categoryId) {
-      const category = await this.categoryRepository.findOne({
-        where: { id: categoryId },
-      });
+      const category = await this.categoryRepository.findOneBy({ id: categoryId });
       if (!category) {
-        throw new NotFoundException(`Category not found`);
+        throw new NotFoundException('Category not found');
       }
       lecture.category = category;
     }
 
     Object.assign(lecture, updateData);
-    return await this.lectureRepository.save(lecture);
+    return this.lectureRepository.save(lecture);
   }
 
+  // ✅ 강의 삭제
   async remove(id: number): Promise<void> {
     const lecture = await this.findOne(id);
     await this.lectureRepository.remove(lecture);

@@ -7,114 +7,93 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model attachments {
-  id        Int      @id @default(autoincrement())
-  notice_id Int?
-  name      String?  @db.VarChar(255)
-  url       String?  @db.Text
-  notices   notices? @relation(fields: [notice_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "attachments_ibfk_1")
-
-  @@index([notice_id], map: "notice_id")
-}
-
 model comment {
-  id         Int      @id @default(autoincrement())
-  content    String   @db.Text
+  id         Int        @id @default(autoincrement())
+  content    String     @db.Text
   userId     Int?
   postId     Int?
-  created_at DateTime @default(now()) @db.DateTime(6)
-  createdAt  DateTime @default(now()) @db.DateTime(6)
-  post       post?    @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_94a85bb16d24033a2afdd5df060")
-  user       user?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_c0354a9a009d3bb45a08655ce3b")
+  created_at DateTime   @default(now()) @db.DateTime(6)
+  createdAt  DateTime   @default(now()) @db.DateTime(6)
+  post       post?      @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_94a85bb16d24033a2afdd5df060")
+  g5_member  g5_member? @relation(fields: [userId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_c0354a9a009d3bb45a08655ce3b")
 
   @@index([postId], map: "FK_94a85bb16d24033a2afdd5df060")
   @@index([userId], map: "FK_c0354a9a009d3bb45a08655ce3b")
 }
 
 model enrollment {
-  id         Int      @id @default(autoincrement())
-  progress   Float    @default(0) @db.Float
-  enrolledAt DateTime @default(now()) @db.DateTime(6)
+  id         Int        @id @default(autoincrement())
+  progress   Float      @default(0) @db.Float
+  enrolledAt DateTime   @default(now()) @db.DateTime(6)
   userId     Int?
   lectureId  Int?
-  user       user?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_e97ecbf11356b5173ce7fb0b060")
-  lecture    lecture? @relation(fields: [lectureId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_f52053e430680e98e386e62231e")
+  g5_member  g5_member? @relation(fields: [userId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_e97ecbf11356b5173ce7fb0b060")
+  lecture    lecture?   @relation(fields: [lectureId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_f52053e430680e98e386e62231e")
 
   @@index([userId], map: "FK_e97ecbf11356b5173ce7fb0b060")
   @@index([lectureId], map: "FK_f52053e430680e98e386e62231e")
 }
 
-model files {
-  id           Int       @id @default(autoincrement())
-  name         String?   @db.VarChar(255)
-  type         String?   @db.VarChar(50)
-  size         String?   @db.VarChar(50)
-  upload_date  DateTime? @db.Date
-  download_url String?   @db.Text
-  uploader_id  Int?
-  user         user?     @relation(fields: [uploader_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "files_ibfk_1")
-
-  @@index([uploader_id], map: "uploader_id")
-}
-
 model g5_member {
-  mb_no             Int      @id @default(autoincrement())
-  mb_id             String   @unique(map: "mb_id") @default("") @db.VarChar(20)
-  mb_password       String   @default("") @db.VarChar(255)
-  mb_password2      String   @default("") @db.VarChar(255)
-  mb_name           String   @default("") @db.VarChar(255)
-  mb_nick           String   @default("") @db.VarChar(255)
-  mb_nick_date      DateTime @default(dbgenerated("'0000-00-00'")) @db.Date
-  mb_email          String   @default("") @db.VarChar(255)
-  mb_homepage       String   @default("") @db.VarChar(255)
-  mb_level          Int      @default(0) @db.TinyInt
-  mb_sex            String   @default("") @db.Char(1)
-  mb_birth          String   @default("") @db.VarChar(255)
-  mb_tel            String   @default("") @db.VarChar(255)
-  mb_hp             String   @default("") @db.VarChar(255)
-  mb_certify        String   @default("") @db.VarChar(20)
-  mb_adult          Int      @default(0) @db.TinyInt
-  mb_dupinfo        String   @default("") @db.VarChar(255)
-  mb_zip1           String   @default("") @db.Char(3)
-  mb_zip2           String   @default("") @db.Char(3)
-  mb_addr1          String   @default("") @db.VarChar(255)
-  mb_addr2          String   @default("") @db.VarChar(255)
-  mb_addr3          String   @default("") @db.VarChar(255)
-  mb_addr_jibeon    String   @default("") @db.VarChar(255)
-  mb_signature      String   @db.Text
-  mb_recommend      String   @default("") @db.VarChar(255)
-  mb_point          Int      @default(0)
-  mb_today_login    DateTime @default(dbgenerated("'0000-00-00 00:00:00'")) @db.DateTime(0)
-  mb_login_ip       String   @default("") @db.VarChar(255)
-  mb_datetime       DateTime @default(dbgenerated("'0000-00-00 00:00:00'")) @db.DateTime(0)
-  mb_ip             String   @default("") @db.VarChar(255)
-  mb_leave_date     String   @default("") @db.VarChar(8)
-  mb_intercept_date String   @default("") @db.VarChar(8)
-  mb_email_certify  DateTime @default(dbgenerated("'0000-00-00 00:00:00'")) @db.DateTime(0)
-  mb_email_certify2 String   @default("") @db.VarChar(255)
-  mb_memo           String   @db.Text
-  mb_lost_certify   String   @db.VarChar(255)
-  mb_mailling       Int      @default(0) @db.TinyInt
-  mb_sms            Int      @default(0) @db.TinyInt
-  mb_open           Int      @default(0) @db.TinyInt
-  mb_open_date      DateTime @default(dbgenerated("'0000-00-00'")) @db.Date
-  mb_profile        String   @db.Text
-  mb_memo_call      String   @default("") @db.VarChar(255)
-  mb_memo_cnt       Int      @default(0)
-  mb_scrap_cnt      Int      @default(0)
-  mb_1              String   @default("") @db.VarChar(255)
-  mb_2              String   @default("") @db.VarChar(255)
-  mb_3              String   @default("") @db.VarChar(255)
-  mb_4              String   @default("") @db.VarChar(255)
-  mb_5              String   @default("") @db.VarChar(255)
-  mb_6              String   @default("") @db.VarChar(255)
-  mb_7              String   @default("") @db.VarChar(255)
-  mb_8              String   @default("") @db.VarChar(255)
-  mb_9              String   @default("") @db.VarChar(255)
-  mb_10             String   @default("") @db.VarChar(255)
-
-  @@index([mb_datetime], map: "mb_datetime")
-  @@index([mb_today_login], map: "mb_today_login")
+  mb_no             Int          @id @default(autoincrement())
+  mb_id             String       @unique(map: "IDX_a03747a84d47d35b85373ebbed") @db.VarChar(20)
+  mb_password       String       @db.VarChar(255)
+  mb_name           String       @db.VarChar(255)
+  mb_nick           String       @db.VarChar(255)
+  mb_nick_date      DateTime?    @db.Date
+  mb_email          String       @db.VarChar(255)
+  mb_homepage       String       @db.VarChar(255)
+  mb_level          Int          @default(0) @db.TinyInt
+  mb_sex            String       @db.VarChar(1)
+  mb_birth          String       @db.VarChar(255)
+  mb_tel            String       @db.VarChar(255)
+  mb_hp             String       @db.VarChar(255)
+  mb_certify        String       @db.VarChar(20)
+  mb_adult          Int          @default(0) @db.TinyInt
+  mb_dupinfo        String       @db.VarChar(255)
+  mb_zip1           String       @db.VarChar(3)
+  mb_zip2           String       @db.VarChar(3)
+  mb_addr1          String       @db.VarChar(255)
+  mb_addr2          String       @db.VarChar(255)
+  mb_addr3          String       @db.VarChar(255)
+  mb_addr_jibeon    String       @db.VarChar(255)
+  mb_signature      String       @db.Text
+  mb_recommend      String       @db.VarChar(255)
+  mb_point          Int          @default(0)
+  mb_today_login    DateTime     @default(dbgenerated("'0000-00-00 00:00:00'")) @db.DateTime(0)
+  mb_login_ip       String       @db.VarChar(255)
+  mb_datetime       DateTime     @default(dbgenerated("'0000-00-00 00:00:00'")) @db.DateTime(0)
+  mb_ip             String       @db.VarChar(255)
+  mb_leave_date     String       @db.VarChar(8)
+  mb_intercept_date String       @db.VarChar(8)
+  mb_email_certify  DateTime     @default(dbgenerated("'0000-00-00 00:00:00'")) @db.DateTime(0)
+  mb_email_certify2 String       @db.VarChar(255)
+  mb_memo           String       @db.Text
+  mb_lost_certify   String       @db.VarChar(255)
+  mb_mailling       Int          @default(0) @db.TinyInt
+  mb_sms            Int          @default(0) @db.TinyInt
+  mb_open           Int          @default(0) @db.TinyInt
+  mb_open_date      DateTime     @default(dbgenerated("'0000-00-00'")) @db.Date
+  mb_profile        String       @db.Text
+  mb_memo_call      String       @db.VarChar(255)
+  mb_memo_cnt       Int          @default(0)
+  mb_scrap_cnt      Int          @default(0)
+  mb_1              String       @db.VarChar(255)
+  mb_2              String       @db.VarChar(255)
+  mb_3              String       @db.VarChar(255)
+  mb_4              String       @db.VarChar(255)
+  mb_5              String       @db.VarChar(255)
+  mb_6              String       @db.VarChar(255)
+  mb_7              String       @db.VarChar(255)
+  mb_8              String       @db.VarChar(255)
+  mb_9              String       @db.VarChar(255)
+  mb_10             String       @db.VarChar(255)
+  mb_password2      String       @db.VarChar(255)
+  comment           comment[]
+  enrollment        enrollment[]
+  lecture           lecture[]
+  payment           payment[]
+  post              post[]
 }
 
 model lecture {
@@ -129,7 +108,7 @@ model lecture {
   categoryId                       Int?
   instructorId                     Int?
   enrollment                       enrollment[]
-  user                             user?                              @relation(fields: [instructorId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_2ca61c8451b53ad2da3c5f6432a")
+  g5_member                        g5_member?                         @relation(fields: [instructorId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_2ca61c8451b53ad2da3c5f6432a")
   lecture_category                 lecture_category?                  @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_8cd71d8895fb3f82f399e605da0")
   lecture_package_lectures_lecture lecture_package_lectures_lecture[]
   payment                          payment[]
@@ -162,15 +141,6 @@ model lecture_package_lectures_lecture {
   @@index([lecturePackageId], map: "IDX_7b163402722fc3ddc6af8ec503")
 }
 
-model notices {
-  id           Int           @id @default(autoincrement())
-  title        String?       @db.VarChar(255)
-  content      String?       @db.Text
-  is_important Boolean?      @default(false)
-  date         DateTime?     @db.Date
-  attachments  attachments[]
-}
-
 model payment {
   id            Int                   @id @default(autoincrement())
   amount        Int
@@ -180,7 +150,7 @@ model payment {
   userId        Int?
   lectureId     Int?
   lecture       lecture?              @relation(fields: [lectureId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_7c58ca1eceb0b74aa4ef4b21a6c")
-  user          user?                 @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_b046318e0b341a7f72110b75857")
+  g5_member     g5_member?            @relation(fields: [userId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_b046318e0b341a7f72110b75857")
 
   @@index([lectureId], map: "FK_7c58ca1eceb0b74aa4ef4b21a6c")
   @@index([userId], map: "FK_b046318e0b341a7f72110b75857")
@@ -194,41 +164,9 @@ model post {
   created_at DateTime      @default(now()) @db.DateTime(6)
   userId     Int?
   comment    comment[]
-  user       user?         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_5c1cf55c308037b5aca1038a131")
+  g5_member  g5_member?    @relation(fields: [userId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_5c1cf55c308037b5aca1038a131")
 
   @@index([userId], map: "FK_5c1cf55c308037b5aca1038a131")
-}
-
-model user {
-  id          Int           @id @default(autoincrement())
-  created_at  DateTime      @default(now()) @db.DateTime(6)
-  mb_id       String        @unique(map: "IDX_7f29283bb1208860d01ac8745c") @db.VarChar(20)
-  mb_password String        @db.VarChar(100)
-  mb_name     String        @db.VarChar(20)
-  mb_nick     String        @db.VarChar(20)
-  mb_email    String        @db.VarChar(100)
-  mb_hp       String?       @db.VarChar(11)
-  mb_sex      String?       @db.VarChar(1)
-  mb_birth    String?       @db.VarChar(8)
-  mb_addr1    String?       @db.VarChar(100)
-  mb_addr2    String?       @db.VarChar(100)
-  mb_level    user_mb_level @default(user)
-  updated_at  DateTime      @default(now()) @db.DateTime(6)
-  comment     comment[]
-  enrollment  enrollment[]
-  files       files[]
-  lecture     lecture[]
-  payment     payment[]
-  post        post[]
-}
-
-model Video {
-  id          Int       @id @default(autoincrement())
-  title       String    @db.VarChar(255)
-  description String?   @db.Text
-  s3Url       String    @db.VarChar(500)
-  createdAt   DateTime? @default(now()) @db.DateTime(0)
-  updatedAt   DateTime? @default(now()) @db.DateTime(0)
 }
 
 enum payment_paymentStatus {
@@ -256,10 +194,4 @@ enum post_category {
 enum lecture_type {
   single
   package
-}
-
-enum user_mb_level {
-  admin
-  instructor
-  user
 }

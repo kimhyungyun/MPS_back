@@ -5,13 +5,11 @@ import { join } from 'path';
 
 export interface FileRecord {
   id: number;
-  name: string;
-  type: string;
-  size: string;
-  upload_date: Date;
-  download_url: string;
-  uploader_id: number;
-  uploader_name?: string;
+  title: string;
+  content: string;
+  category: string;
+  created_at: Date;
+  userId?: number;
 }
 
 interface CountResult {
@@ -26,14 +24,12 @@ export class FileService {
     // 파일명 디코딩
     const decodedFileName = decodeURIComponent(file.originalname);
     
-    const result = await this.prisma.files.create({
+    const result = await this.prisma.post.create({
       data: {
-        name: decodedFileName,
-        type: file.mimetype,
-        size: file.size.toString(),
-        upload_date: new Date(),
-        download_url: file.filename,
-        uploader_id: userId
+        title: decodedFileName,
+        content: `File: ${file.filename}, Type: ${file.mimetype}, Size: ${file.size}`,
+        category: 'free', // 파일은 free 카테고리로 저장
+        userId: userId
       }
     });
 
@@ -43,39 +39,52 @@ export class FileService {
   async getFiles(page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
     const [files, total] = await Promise.all([
-      this.prisma.files.findMany({
+      this.prisma.post.findMany({
+        where: {
+          category: 'free' // 파일로 저장된 게시물만 조회
+        },
         skip,
         take: limit,
         orderBy: {
-          upload_date: 'desc'
+          created_at: 'desc'
         },
         include: {
-          user: {
+          g5_member: {
             select: {
               mb_name: true
             }
           }
         }
       }),
-      this.prisma.files.count()
+      this.prisma.post.count({
+        where: {
+          category: 'free'
+        }
+      })
     ]);
 
     return {
       files: files.map(file => ({
-        ...file,
-        uploader_name: file.user?.mb_name
+        id: file.id,
+        name: file.title,
+        type: file.content.includes('Type:') ? file.content.split('Type: ')[1].split(',')[0] : '',
+        size: file.content.includes('Size:') ? file.content.split('Size: ')[1] : '',
+        upload_date: file.created_at,
+        download_url: file.content.includes('File:') ? file.content.split('File: ')[1].split(',')[0] : '',
+        uploader_id: file.userId,
+        uploader_name: file.g5_member?.mb_name
       })),
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(Number(total) / limit),
     };
   }
 
   async getFileById(id: number) {
-    const file = await this.prisma.files.findUnique({
+    const file = await this.prisma.post.findUnique({
       where: { id },
       include: {
-        user: {
+        g5_member: {
           select: {
             mb_name: true
           }
@@ -83,28 +92,35 @@ export class FileService {
       }
     });
 
-    if (!file) {
+    if (!file || file.category !== 'free') {
       throw new NotFoundException('File not found');
     }
 
     return {
-      ...file,
-      uploader_name: file.user?.mb_name
+      id: file.id,
+      name: file.title,
+      type: file.content.includes('Type:') ? file.content.split('Type: ')[1].split(',')[0] : '',
+      size: file.content.includes('Size:') ? file.content.split('Size: ')[1] : '',
+      upload_date: file.created_at,
+      download_url: file.content.includes('File:') ? file.content.split('File: ')[1].split(',')[0] : '',
+      uploader_id: file.userId,
+      uploader_name: file.g5_member?.mb_name
     };
   }
 
   async deleteFile(id: number) {
-    const file = await this.prisma.files.findUnique({
+    const file = await this.prisma.post.findUnique({
       where: { id }
     });
 
-    if (!file) {
+    if (!file || file.category !== 'free') {
       throw new NotFoundException('File not found');
     }
 
     // Delete file from filesystem
-    if (file.download_url) {
-      const filePath = join(process.cwd(), 'uploads', file.download_url);
+    if (file.content.includes('File:')) {
+      const fileName = file.content.split('File: ')[1].split(',')[0];
+      const filePath = join(process.cwd(), 'uploads', fileName);
       try {
         unlinkSync(filePath);
       } catch (error) {
@@ -113,7 +129,7 @@ export class FileService {
     }
 
     // Delete file record from database
-    await this.prisma.files.delete({
+    await this.prisma.post.delete({
       where: { id }
     });
 
@@ -123,28 +139,30 @@ export class FileService {
   async searchFiles(query: string, page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
     const [files, total] = await Promise.all([
-      this.prisma.files.findMany({
+      this.prisma.post.findMany({
         where: {
-          name: {
+          category: 'free',
+          title: {
             contains: query
           }
         },
         skip,
         take: limit,
         orderBy: {
-          upload_date: 'desc'
+          created_at: 'desc'
         },
         include: {
-          user: {
+          g5_member: {
             select: {
               mb_name: true
             }
           }
         }
       }),
-      this.prisma.files.count({
+      this.prisma.post.count({
         where: {
-          name: {
+          category: 'free',
+          title: {
             contains: query
           }
         }
@@ -153,12 +171,18 @@ export class FileService {
 
     return {
       files: files.map(file => ({
-        ...file,
-        uploader_name: file.user?.mb_name
+        id: file.id,
+        name: file.title,
+        type: file.content.includes('Type:') ? file.content.split('Type: ')[1].split(',')[0] : '',
+        size: file.content.includes('Size:') ? file.content.split('Size: ')[1] : '',
+        upload_date: file.created_at,
+        download_url: file.content.includes('File:') ? file.content.split('File: ')[1].split(',')[0] : '',
+        uploader_id: file.userId,
+        uploader_name: file.g5_member?.mb_name
       })),
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(Number(total) / limit),
     };
   }
 } 

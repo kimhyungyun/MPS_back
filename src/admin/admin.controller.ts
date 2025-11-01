@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { AdminService } from '@/admin/admin.service';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
@@ -33,4 +33,14 @@ export class AdminController {
       data: result,
     };
   }
-} 
+npm
+  // ✅ 관리자 통계 API 추가
+  @Get('stats')
+  async getAdminStats() {
+    const result = await this.adminService.getAdminStats();
+    return {
+      success: true,
+      data: result,
+    };
+  }
+}

@@ -1,4 +1,15 @@
-import { Controller, Post, Body, UseGuards, Get, Request, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Request,
+  HttpException,
+  HttpStatus,
+  UnauthorizedException,
+  HttpCode,   // ✅ 추가
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -19,12 +30,13 @@ export class AuthController {
       }
       throw new HttpException(
         error.message || '회원가입 중 오류가 발생했습니다.',
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
   @Post('login')
+  @HttpCode(200) // ✅ POST는 기본 201 → 강제로 200으로 변경
   async login(@Body() loginDto: LoginDto) {
     try {
       return await this.authService.login(loginDto);
@@ -35,7 +47,7 @@ export class AuthController {
       }
       throw new HttpException(
         error.message || '로그인에 실패했습니다.',
-        HttpStatus.UNAUTHORIZED
+        HttpStatus.UNAUTHORIZED,
       );
     }
   }
@@ -52,11 +64,12 @@ export class AuthController {
           mb_name: user.mb_name,
           mb_nick: user.mb_nick,
           mb_level: user.mb_level,
-          isAdmin: user.mb_nick === '관리자' || user.mb_nick === '최고관리자'
-        }
+          isAdmin:
+            user.mb_nick === '관리자' || user.mb_nick === '최고관리자',
+        },
       };
     } catch (error) {
       throw new UnauthorizedException('사용자 정보를 찾을 수 없습니다.');
     }
   }
-} 
+}

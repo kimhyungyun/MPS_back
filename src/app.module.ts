@@ -11,7 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { FileModule } from './file/file.module';
 import { NoticesModule } from './notices/notices.module';
-import { CloudfrontModule } from './cloudfront/cloudfront.module';
+import { SignedUrlModule } from './signedurl/signed-url.module';
 
 @Module({
   imports: [
@@ -25,7 +25,7 @@ import { CloudfrontModule } from './cloudfront/cloudfront.module';
     AuthModule,
     FileModule,
     NoticesModule,
-    CloudfrontModule,
+    SignedUrlModule,
   ],
 })
 export class AppModule {}
