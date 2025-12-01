@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateMemberDto, UpdateMemberDto } from '../dto/member.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class MemberService {
@@ -42,8 +43,11 @@ export class MemberService {
   }
 
   async create(createMemberDto: CreateMemberDto) {
-    const data = {
+    const data: Prisma.g5_memberCreateInput = {
+      // DTO에 있는 필드들 먼저
       ...createMemberDto,
+
+      // 여기부터 기본값 세팅
       mb_nick: createMemberDto.mb_name,
       mb_homepage: '',
       mb_sex: 'M',
@@ -91,8 +95,12 @@ export class MemberService {
       mb_9: '',
       mb_10: '',
       mb_password2: createMemberDto.mb_password,
+
+      // 🔥 mb_school은 Prisma에서 NOT NULL String 이라 무조건 string 넣기
+      // DTO에서 옵셔널이면 ?? '' 로 강제 string 처리
+      mb_school: (createMemberDto as any).mb_school ?? '',
     };
-    
+
     return this.prisma.g5_member.create({
       data,
     });
@@ -110,4 +118,4 @@ export class MemberService {
       where: { mb_id },
     });
   }
-} 
+}

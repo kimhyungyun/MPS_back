@@ -5,6 +5,8 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserModule } from '../user/user.module';
+import { SmsService } from './sms.service';
+import { PrismaService } from '../prisma/prisma.service'; // ⚠️ 경로 확인
 
 @Module({
   imports: [
@@ -16,7 +18,7 @@ import { UserModule } from '../user/user.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, SmsService, PrismaService],
   exports: [AuthService],
 })
-export class AuthModule {} 
+export class AuthModule {}

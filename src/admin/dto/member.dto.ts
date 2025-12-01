@@ -16,7 +16,7 @@ export class UpdateMemberDto {
 
   @IsNumber()
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => (value !== undefined ? parseInt(value, 10) : undefined))
   mb_level?: number;
 
   @IsString()
@@ -34,6 +34,23 @@ export class UpdateMemberDto {
   @IsString()
   @IsOptional()
   mb_profile?: string;
+
+  // ✅ 추가 필드들
+  @IsString()
+  @IsOptional()
+  mb_school?: string;
+
+  @IsString()
+  @IsOptional()
+  mb_addr1?: string;
+
+  @IsString()
+  @IsOptional()
+  mb_addr2?: string;
+
+  @IsString()
+  @IsOptional()
+  mb_hp?: string;
 }
 
 export class CreateMemberDto {
@@ -51,7 +68,7 @@ export class CreateMemberDto {
 
   @IsNumber()
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => (value !== undefined ? parseInt(value, 10) : undefined))
   mb_level?: number;
 
   @IsString()
@@ -69,4 +86,20 @@ export class CreateMemberDto {
   @IsString()
   @IsOptional()
   mb_profile?: string;
-} 
+
+  @IsString()
+  @IsOptional()
+  mb_school?: string;
+
+  @IsString()
+  @IsOptional()
+  mb_addr1?: string;
+
+  @IsString()
+  @IsOptional()
+  mb_addr2?: string;
+
+  @IsString()
+  @IsOptional()
+  mb_hp?: string;
+}

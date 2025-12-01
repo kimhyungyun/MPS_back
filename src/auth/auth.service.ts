@@ -1,17 +1,29 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { PrismaService } from '../prisma/prisma.service'; // ⚠️ 경로는 실제 프로젝트 구조에 맞게
+import { SmsService } from './sms.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly smsService: SmsService,
   ) {}
+
+  // -------------------- 기존 로그인 관련 --------------------
 
   private isSha256Format(password: string): boolean {
     return password.startsWith('sha256:');
@@ -30,7 +42,7 @@ export class AuthService {
         salt,
         iterations,
         24, // 192-bit key
-        'sha256'
+        'sha256',
       );
 
       const inputHash = derivedKey.toString('base64').replace(/=+$/, '');
@@ -53,7 +65,7 @@ export class AuthService {
         message: '회원가입이 완료되었습니다.',
         data: result,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Signup error:', error);
       if (error.code === 'P2002') {
         throw new ConflictException('이미 사용 중인 아이디입니다.');
@@ -77,9 +89,15 @@ export class AuthService {
       console.log('Stored password format:', user.mb_password);
 
       if (this.isSha256Format(user.mb_password)) {
-        isPasswordValid = this.verifySha256Hashed(loginDto.mb_password, user.mb_password);
+        isPasswordValid = this.verifySha256Hashed(
+          loginDto.mb_password,
+          user.mb_password,
+        );
       } else if (user.mb_password.startsWith('$2')) {
-        isPasswordValid = await bcrypt.compare(loginDto.mb_password, user.mb_password);
+        isPasswordValid = await bcrypt.compare(
+          loginDto.mb_password,
+          user.mb_password,
+        );
       } else {
         isPasswordValid = loginDto.mb_password === user.mb_password;
       }
@@ -105,7 +123,7 @@ export class AuthService {
           mb_nick: user.mb_nick,
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error details:', {
         message: error.message,
         stack: error.stack,
@@ -121,5 +139,197 @@ export class AuthService {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
     }
     return user;
+  }
+
+  // ✅ 아이디 중복 확인
+  async checkId(mb_id: string): Promise<boolean> {
+    if (!mb_id) return false;
+
+    try {
+      await this.userService.findByMbId(mb_id);
+      // 여기까지 왔다는 건 "유저 있음" → 사용 불가
+      return false;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        // 유저 없음 → 사용 가능
+        return true;
+      }
+      // 다른 에러는 그대로 던지기
+      throw error;
+    }
+  }
+
+  // ✅ 닉네임 중복 확인
+  async checkNick(mb_nick: string): Promise<boolean> {
+    if (!mb_nick) return false;
+    const user = await this.userService.findByMbNick(mb_nick);
+    return !user; // 존재하지 않으면 사용 가능
+  }
+
+  // -------------------- 여기부터 "아이디 찾기 / 비번 찾기" 추가 --------------------
+
+  // 🔍 아이디 찾기
+  async findId(name: string, phone: string) {
+    // UserService에 새 메서드 추가해서 사용하는 걸 추천
+    const user = await this.userService.findByNameAndPhone(name, phone);
+
+    if (!user) {
+      throw new NotFoundException('일치하는 회원 정보를 찾을 수 없습니다.');
+    }
+
+    const maskedUserId = this.maskUserId(user.mb_id);
+
+    // 문자 발송 (선택)
+    const hp = (user as any).mb_hp ?? (user as any).phone;
+    if (hp) {
+      const message = `[MPS] ${user.mb_name ?? name}님 아이디는 ${user.mb_id} 입니다.`;
+      await this.smsService.send({
+        to: hp,
+        content: message,
+      });
+    }
+
+    return { maskedUserId };
+  }
+
+  private maskUserId(mb_id: string): string {
+    if (mb_id.length <= 3) return '*'.repeat(mb_id.length);
+
+    const visibleStart = mb_id.slice(0, 2);
+    const visibleEnd = mb_id.slice(-2);
+    const stars = '*'.repeat(mb_id.length - 4);
+
+    return `${visibleStart}${stars}${visibleEnd}`;
+  }
+
+  // 📲 비밀번호 재설정 - 1단계: SMS 코드 전송
+  async requestPasswordSms(mb_id: string, phone: string) {
+    const user = await this.userService.findByMbId(mb_id);
+
+    if (!user) {
+      throw new NotFoundException('회원 정보를 찾을 수 없습니다.');
+    }
+
+    const userPhone = (user as any).mb_hp ?? (user as any).phone;
+
+    if (!userPhone) {
+      throw new BadRequestException('회원 정보에 등록된 휴대폰 번호가 없습니다.');
+    }
+
+    if (userPhone !== phone) {
+      throw new BadRequestException('등록된 휴대폰 번호와 일치하지 않습니다.');
+    }
+
+    // 기존에 살아있는 요청들 사용 처리
+    await this.prisma.passwordReset.updateMany({
+      where: {
+        mb_id,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+      data: { used: true },
+    });
+
+    const code = this.generateCode(6);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5분
+
+    await this.prisma.passwordReset.create({
+      data: {
+        mb_id,
+        phone,
+        code,
+        resetToken: null,
+        expiresAt,
+        used: false,
+      },
+    });
+
+    const message = `[MPS] 비밀번호 재설정 인증번호는 [${code}] 입니다. (5분 이내 입력)`;
+    await this.smsService.send({
+      to: phone,
+      content: message,
+    });
+
+    return true;
+  }
+
+  private generateCode(length: number): string {
+    const min = 10 ** (length - 1);
+    const max = 10 ** length - 1;
+    const num = Math.floor(min + Math.random() * (max - min + 1));
+    return String(num);
+  }
+
+  // 📲 비밀번호 재설정 - 2단계: 코드 검증 → resetToken 발급
+  async verifyPasswordSms(mb_id: string, code: string) {
+    const now = new Date();
+
+    const reset = await this.prisma.passwordReset.findFirst({
+      where: {
+        mb_id,
+        used: false,
+        expiresAt: { gt: now },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (!reset || reset.code !== code) {
+      throw new BadRequestException(
+        '인증번호가 올바르지 않거나 만료되었습니다.',
+      );
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    await this.prisma.passwordReset.update({
+      where: { id: reset.id },
+      data: {
+        resetToken,
+        code: null, // 코드 재사용 방지
+      },
+    });
+
+    return resetToken;
+  }
+
+  // 🔐 비밀번호 재설정 - 3단계: 새 비밀번호 저장
+  async resetPassword(resetToken: string, newPassword: string) {
+    const now = new Date();
+
+    const reset = await this.prisma.passwordReset.findFirst({
+      where: {
+        resetToken,
+        used: false,
+        expiresAt: { gt: now },
+      },
+    });
+
+    if (!reset) {
+      throw new BadRequestException(
+        '유효하지 않거나 만료된 비밀번호 재설정 요청입니다.',
+      );
+    }
+
+    const user = await this.userService.findByMbId(reset.mb_id);
+
+    if (!user) {
+      throw new NotFoundException('회원 정보를 찾을 수 없습니다.');
+    }
+
+    // 새 비밀번호 해시
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    // UserService에 비밀번호 업데이트 메서드 하나 추가해서 사용
+    await this.userService.updatePassword(user.mb_id, hashed);
+
+    // 이 resetToken 사용 처리
+    await this.prisma.passwordReset.update({
+      where: { id: reset.id },
+      data: { used: true },
+    });
+
+    return true;
   }
 }

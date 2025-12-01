@@ -26,6 +26,10 @@ export class CreateUserDto {
   mb_email: string;
 
   @IsString()
+  @IsNotEmpty()
+  mb_school: string;
+
+  @IsString()
   @IsOptional()
   mb_homepage?: string;
 

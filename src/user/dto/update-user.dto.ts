@@ -22,6 +22,10 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
+  mb_school?: string;
+
+  @IsString()
+  @IsOptional()
   mb_homepage?: string;
 
   @IsEnum(UserRole)

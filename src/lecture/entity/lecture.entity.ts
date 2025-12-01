@@ -10,6 +10,7 @@ import { User } from '@/user/entity/user.entity';
 import { LectureType } from '../enum/lecture-type.enum';
 import { LectureCategory } from './lecture-category.entity';
 import { Payment } from '@/payment/entity/payment.entity';
+import { ClassGroup } from '../enum/class-group.enum';
 
 @Entity()
 export class Lecture {
@@ -41,6 +42,13 @@ export class Lecture {
     default: LectureType.SINGLE,
   })
   type: LectureType;
+
+    @Column({
+    type: 'enum',
+    enum: ClassGroup,
+    default: ClassGroup.S,
+  })
+  classGroup: ClassGroup;
 
   @ManyToOne(() => LectureCategory, (category) => category.lectures, {
     eager: true,

@@ -50,6 +50,9 @@ export class User {
   @Column({ length: 255 })
   mb_birth: string;
 
+  @Column({ length: 255, nullable: true })
+  mb_school: string;
+
   @Column({ length: 255 })
   mb_tel: string;
 

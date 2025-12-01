@@ -1,4 +1,13 @@
-import { Controller, Get, Param, Put, Body, UseGuards, Request } from '@nestjs/common';
+// src/user/user.controller.ts
+import {
+  Controller,
+  Get,
+  Param,
+  Put,
+  Body,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -7,15 +16,18 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  // mb_no(회원번호)로 유저 조회
   @Get(':mb_no')
   async getUserById(@Param('mb_no') id: string) {
-    const user = await this.userService.findByUserId(Number(id));  
+    const user = await this.userService.findByUserId(Number(id));
+
     if (!user) {
       return {
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       };
     }
+
     return {
       success: true,
       data: {
@@ -50,20 +62,19 @@ export class UserController {
         mb_memo: user.mb_memo,
         mb_profile: user.mb_profile,
         mb_memo_cnt: user.mb_memo_cnt,
-        // mb_scrap_cnt: user.mb_scrap_cnt,
-        // created_at: user.created_at,
-        // updated_at: user.updated_at
-      }
+        // 필요하면 나머지도 추가
+      },
     };
   }
 
+  // JWT 인증된 사용자 프로필 수정
   @UseGuards(JwtAuthGuard)
   @Put('profile')
   async updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
     const result = await this.userService.update(req.user.mb_id, updateUserDto);
     return {
       success: true,
-      data: result
+      data: result,
     };
   }
 }

@@ -1,15 +1,4 @@
-import { IsString, IsBoolean, IsOptional } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateNoticeDto } from './create-notice.dto';
 
-export class UpdateNoticeDto {
-  @IsString()
-  @IsOptional()
-  title?: string;
-
-  @IsString()
-  @IsOptional()
-  content?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  isImportant?: boolean;
-} 
+export class UpdateNoticeDto extends PartialType(CreateNoticeDto) {}
