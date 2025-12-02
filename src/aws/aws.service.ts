@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { v4 as uuid } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AwsService {
@@ -13,7 +13,7 @@ export class AwsService {
   });
 
   async uploadFile(file: Express.Multer.File): Promise<string> {
-    const key = `videos/${uuid()}-${file.originalname}`;  // S3의 파일 키 생성
+    const key = `videos/${uuidv4()}-${file.originalname}`;  // S3의 파일 키 생성
 
     const command = new PutObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME as string,  // S3 버킷 이름

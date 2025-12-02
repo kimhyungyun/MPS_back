@@ -10,6 +10,11 @@ import { Type } from 'class-transformer';
 
 // ✅ 첨부파일 DTO
 export class CreateNoticeAttachmentDto {
+
+  @IsOptional()
+  @IsNumber()
+  id?: number; // 기존 첨부파일이면 id 들어옴
+  
   @IsString()
   fileName: string;
 

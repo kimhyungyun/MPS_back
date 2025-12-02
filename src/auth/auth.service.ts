@@ -11,7 +11,7 @@ import { CreateUserDto } from '../user/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { PrismaService } from '../prisma/prisma.service'; // ⚠️ 경로는 실제 프로젝트 구조에 맞게
+import { PrismaService } from '../prisma/prisma.service';
 import { SmsService } from './sms.service';
 
 @Injectable()
@@ -23,7 +23,7 @@ export class AuthService {
     private readonly smsService: SmsService,
   ) {}
 
-  // -------------------- 기존 로그인 관련 --------------------
+  // -------------------- 로그인 관련 --------------------
 
   private isSha256Format(password: string): boolean {
     return password.startsWith('sha256:');
@@ -41,7 +41,7 @@ export class AuthService {
         inputPassword,
         salt,
         iterations,
-        24, // 192-bit key
+        24,
         'sha256',
       );
 
@@ -55,9 +55,8 @@ export class AuthService {
 
   async signup(createUserDto: CreateUserDto) {
     try {
-      const user = await this.userService.create({
-        ...createUserDto,
-      });
+      // UserService.create 안에서 isProfileCompleted / lastLoginAt 세팅
+      const user = await this.userService.create(createUserDto);
 
       const { mb_password, ...result } = user;
       return {
@@ -106,9 +105,37 @@ export class AuthService {
         throw new UnauthorizedException('아이디 또는 비밀번호가 일치하지 않습니다.');
       }
 
+      const now = new Date();
+      const policyStartDate = new Date('2025-12-02T00:00:00+09:00');
+
+      // ✅ mb_level을 숫자로 강제 변환 (DB는 tinyint지만 TS는 string일 수 있음)
+      const level = Number(user.mb_level ?? 0);
+
+      // ✅ 관리자 여부
+      const isAdmin = user.mb_id === 'admin' || level >= 10;
+
+      let needProfileUpdate = false;
+
+      if (!isAdmin) {
+        // 일반 회원만 추가정보/동의 대상
+        needProfileUpdate =
+          !user.isProfileCompleted &&
+          (!user.lastLoginAt || user.lastLoginAt < policyStartDate);
+      }
+
+      // ✅ lastLoginAt 업데이트는 실패해도 로그인 막지 않기
+      try {
+        await this.userService.updateLastLoginAt(user.mb_id, now);
+      } catch (e: any) {
+        console.error(
+          '[LOGIN] updateLastLoginAt 실패 (로그인 진행은 계속):',
+          e.message,
+        );
+      }
+
       const payload = {
         mb_id: user.mb_id,
-        mb_level: user.mb_level,
+        mb_level: level,
         mb_nick: user.mb_nick,
       };
       const access_token = this.jwtService.sign(payload);
@@ -119,8 +146,9 @@ export class AuthService {
         data: {
           access_token,
           mb_id: user.mb_id,
-          mb_level: user.mb_level,
+          mb_level: level,
           mb_nick: user.mb_nick,
+          needProfileUpdate,
         },
       };
     } catch (error: any) {
@@ -141,36 +169,31 @@ export class AuthService {
     return user;
   }
 
-  // ✅ 아이디 중복 확인
+  // -------------------- 중복 확인 --------------------
+
   async checkId(mb_id: string): Promise<boolean> {
     if (!mb_id) return false;
 
     try {
       await this.userService.findByMbId(mb_id);
-      // 여기까지 왔다는 건 "유저 있음" → 사용 불가
       return false;
     } catch (error) {
       if (error instanceof NotFoundException) {
-        // 유저 없음 → 사용 가능
         return true;
       }
-      // 다른 에러는 그대로 던지기
       throw error;
     }
   }
 
-  // ✅ 닉네임 중복 확인
   async checkNick(mb_nick: string): Promise<boolean> {
     if (!mb_nick) return false;
     const user = await this.userService.findByMbNick(mb_nick);
-    return !user; // 존재하지 않으면 사용 가능
+    return !user;
   }
 
-  // -------------------- 여기부터 "아이디 찾기 / 비번 찾기" 추가 --------------------
+  // -------------------- 아이디 찾기 / 비번 찾기 --------------------
 
-  // 🔍 아이디 찾기
   async findId(name: string, phone: string) {
-    // UserService에 새 메서드 추가해서 사용하는 걸 추천
     const user = await this.userService.findByNameAndPhone(name, phone);
 
     if (!user) {
@@ -178,17 +201,6 @@ export class AuthService {
     }
 
     const maskedUserId = this.maskUserId(user.mb_id);
-
-    // 문자 발송 (선택)
-    const hp = (user as any).mb_hp ?? (user as any).phone;
-    if (hp) {
-      const message = `[MPS] ${user.mb_name ?? name}님 아이디는 ${user.mb_id} 입니다.`;
-      await this.smsService.send({
-        to: hp,
-        content: message,
-      });
-    }
-
     return { maskedUserId };
   }
 
@@ -203,7 +215,11 @@ export class AuthService {
   }
 
   // 📲 비밀번호 재설정 - 1단계: SMS 코드 전송
-  async requestPasswordSms(mb_id: string, phone: string) {
+  async requestPasswordSms(
+    mb_id: string,
+    phoneForSearch: string, // 010-1234-5678 (DB 비교용)
+    phoneForSms: string,    // 01012345678 (문자 발송용)
+  ) {
     const user = await this.userService.findByMbId(mb_id);
 
     if (!user) {
@@ -216,11 +232,10 @@ export class AuthService {
       throw new BadRequestException('회원 정보에 등록된 휴대폰 번호가 없습니다.');
     }
 
-    if (userPhone !== phone) {
+    if (userPhone !== phoneForSearch) {
       throw new BadRequestException('등록된 휴대폰 번호와 일치하지 않습니다.');
     }
 
-    // 기존에 살아있는 요청들 사용 처리
     await this.prisma.passwordReset.updateMany({
       where: {
         mb_id,
@@ -231,12 +246,12 @@ export class AuthService {
     });
 
     const code = this.generateCode(6);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5분
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     await this.prisma.passwordReset.create({
       data: {
         mb_id,
-        phone,
+        phone: phoneForSearch,
         code,
         resetToken: null,
         expiresAt,
@@ -245,8 +260,10 @@ export class AuthService {
     });
 
     const message = `[MPS] 비밀번호 재설정 인증번호는 [${code}] 입니다. (5분 이내 입력)`;
+    const digitsOnly = phoneForSms.replace(/\D/g, '');
+
     await this.smsService.send({
-      to: phone,
+      to: digitsOnly,
       content: message,
     });
 
@@ -287,7 +304,7 @@ export class AuthService {
       where: { id: reset.id },
       data: {
         resetToken,
-        code: null, // 코드 재사용 방지
+        code: null,
       },
     });
 
@@ -318,13 +335,10 @@ export class AuthService {
       throw new NotFoundException('회원 정보를 찾을 수 없습니다.');
     }
 
-    // 새 비밀번호 해시
     const hashed = await bcrypt.hash(newPassword, 10);
 
-    // UserService에 비밀번호 업데이트 메서드 하나 추가해서 사용
     await this.userService.updatePassword(user.mb_id, hashed);
 
-    // 이 resetToken 사용 처리
     await this.prisma.passwordReset.update({
       where: { id: reset.id },
       data: { used: true },

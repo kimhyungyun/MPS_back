@@ -12,6 +12,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { FileModule } from './file/file.module';
 import { NoticesModule } from './notices/notices.module';
 import { SignedUrlModule } from './signedurl/signed-url.module';
+import { DevicesModule } from './device/devices.module';
+import { VideoAuthorityModule } from './videoauthority/video-authority.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { SignedUrlModule } from './signedurl/signed-url.module';
     FileModule,
     NoticesModule,
     SignedUrlModule,
+    DevicesModule,
+    VideoAuthorityModule,
   ],
 })
 export class AppModule {}

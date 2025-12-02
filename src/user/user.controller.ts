@@ -11,12 +11,12 @@ import {
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CompleteProfileDto } from './dto/complete-profile.dto';
 
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  // mb_no(회원번호)로 유저 조회
   @Get(':mb_no')
   async getUserById(@Param('mb_no') id: string) {
     const user = await this.userService.findByUserId(Number(id));
@@ -62,18 +62,35 @@ export class UserController {
         mb_memo: user.mb_memo,
         mb_profile: user.mb_profile,
         mb_memo_cnt: user.mb_memo_cnt,
-        // 필요하면 나머지도 추가
       },
     };
   }
 
-  // JWT 인증된 사용자 프로필 수정
   @UseGuards(JwtAuthGuard)
   @Put('profile')
   async updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
     const result = await this.userService.update(req.user.mb_id, updateUserDto);
     return {
       success: true,
+      data: result,
+    };
+  }
+
+  // ✅ 로그인 후 추가 정보 + 개인정보 동의
+  @UseGuards(JwtAuthGuard)
+  @Put('complete-profile')
+  async completeProfile(
+    @Request() req,
+    @Body() completeProfileDto: CompleteProfileDto,
+  ) {
+    const result = await this.userService.completeProfile(
+      req.user.mb_id,
+      completeProfileDto,
+    );
+
+    return {
+      success: true,
+      message: '추가 정보 및 동의가 완료되었습니다.',
       data: result,
     };
   }

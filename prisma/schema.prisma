@@ -78,7 +78,7 @@ model g5_member {
   mb_memo_call      String       @db.VarChar(255)
   mb_memo_cnt       Int          @default(0)
   mb_scrap_cnt      Int          @default(0)
-  mb_school         String?       @db.VarChar(255)
+  mb_school         String?      @db.VarChar(255)
   mb_1              String       @db.VarChar(255)
   mb_2              String       @db.VarChar(255)
   mb_3              String       @db.VarChar(255)
@@ -90,6 +90,7 @@ model g5_member {
   mb_9              String       @db.VarChar(255)
   mb_10             String       @db.VarChar(255)
   mb_password2      String       @db.VarChar(255)
+
   comment           comment[]
   enrollment        enrollment[]
   lecture           lecture[]
@@ -103,20 +104,33 @@ model lecture {
   description                      String                             @db.Text
   price                            Int
   thumbnail_url                    String                             @db.VarChar(255)
-  video_url                        String                             @db.VarChar(255)
+
+  // 🔹 DB에는 video_url 없음 → 제거
+  // video_url                      String                             @db.VarChar(255)
+
   type                             lecture_type                       @default(single)
   created_at                       DateTime                           @default(now()) @db.DateTime(6)
   categoryId                       Int?
   instructorId                     Int?
+
+  // 🔹 DB에 있는 컬럼들 반영
+  video_folder                     String?                            @db.VarChar(255)
+  video_name                       String?                            @db.VarChar(255)
+
   enrollment                       enrollment[]
   g5_member                        g5_member?                         @relation(fields: [instructorId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_2ca61c8451b53ad2da3c5f6432a")
   lecture_category                 lecture_category?                  @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_8cd71d8895fb3f82f399e605da0")
   lecture_package_lectures_lecture lecture_package_lectures_lecture[]
   payment                          payment[]
 
+  // 🔹 DB: NOT NULL DEFAULT 'S'
+  classGroup                       ClassGroup                         @default(S) @map("classGroup")
+
+  @@map("lecture")
   @@index([instructorId], map: "FK_2ca61c8451b53ad2da3c5f6432a")
   @@index([categoryId], map: "FK_8cd71d8895fb3f82f399e605da0")
 }
+
 
 model lecture_category {
   id      Int       @id @default(autoincrement())
@@ -165,24 +179,23 @@ model post {
   created_at   DateTime         @default(now()) @db.DateTime(6)
   userId       Int?
 
-  // ✅ 중요 여부
+  // 중요 여부
   is_important Boolean          @default(false)
 
-  // ✅ 대표 이미지 (커버)
+  // 대표 이미지
   coverImageUrl String?         @db.VarChar(500)
 
-  // ✅ 댓글
+  // 댓글
   comment      comment[]
 
-  // ✅ 첨부파일
+  // 첨부파일
   attachments  post_attachment[]
 
-  // ✅ 작성자 (회원)
+  // 작성자
   g5_member    g5_member?       @relation(fields: [userId], references: [mb_no])
 
   @@index([userId], map: "FK_5c1cf55c308037b5aca1038a131")
 }
-
 
 model post_attachment {
   id        Int      @id @default(autoincrement())
@@ -212,10 +225,6 @@ model PasswordReset {
   updatedAt  DateTime  @updatedAt
 }
 
-
-
-
-
 enum payment_paymentStatus {
   pending
   completed
@@ -238,7 +247,17 @@ enum post_category {
   review
 }
 
+enum ClassGroup {
+  A
+  B
+  S
+}
+
 enum lecture_type {
   single
-  package
+  packageA
+  packageB
+  packageC
+  packageD
+  packageE
 }

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, Length, IsEmail, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, Length, IsEmail, IsEnum, IsBoolean, Equals } from 'class-validator';
 import { UserRole } from '../enum/user-role.enum';
 
 export class CreateUserDto {
@@ -96,4 +96,8 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   mb_profile?: string;
+
+  @IsBoolean()
+  @Equals(true, { message: '개인정보 수집 · 이용 동의(필수)에 체크해야 합니다.' })
+  agreePrivacy: boolean;
 }

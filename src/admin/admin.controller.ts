@@ -1,3 +1,4 @@
+// src/admin/admin.controller.ts
 import {
   Controller,
   Get,
@@ -18,7 +19,8 @@ type SortOrder = 'asc' | 'desc';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('admin')
+// 🔥 여기만 변경
+@Roles(8) // mb_level >= 8 만 접근 가능
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
@@ -56,14 +58,11 @@ export class AdminController {
     };
   }
 
-  // ✅ 관리자 대시보드 통계 (총 회원 수 / 총 강의 수 / 총 결제 수)
-  // 프론트에서 setStats(data)로 바로 쓰고 있어서 래핑 없이 그대로 리턴
   @Get('stats')
   async getAdminStats() {
     return this.adminService.getAdminStats();
   }
 
-  // ✅ 회원 통계 상세 (월/주/일 가입자 수 / 방문자 수)
   @Get('stats/users')
   async getUserStats(@Query('range') range: Range = 'month') {
     const safeRange: Range =

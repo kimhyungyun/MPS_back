@@ -20,8 +20,29 @@ import { PasswordSmsVerifyDto } from './dto/password-sms-verify.dto';
 import { PasswordResetDto } from './dto/password-reset.dto';
 
 @Controller('auth')
-export class AuthController {  // 🔥 이 이름이 AuthModule이랑 매칭됨
+export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  /**
+   * 휴대폰 번호 정규화
+   * - digits: 01012345678 (숫자만)
+   * - dashed: 010-1234-5678 (DB 저장/검색용)
+   */
+  private normalizePhone(phone: string) {
+    const raw = phone ?? '';
+    const digits = raw.replace(/\D/g, '');
+
+    if (!digits) {
+      return { digits: '', dashed: '' };
+    }
+
+    const dashed =
+      digits.length >= 10
+        ? digits.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3')
+        : digits;
+
+    return { digits, dashed };
+  }
 
   // 회원가입
   @Post('signup')
@@ -52,7 +73,9 @@ export class AuthController {  // 🔥 이 이름이 AuthModule이랑 매칭됨
     const available = await this.authService.checkId(mb_id);
     return {
       available,
-      message: available ? '사용 가능한 아이디입니다.' : '이미 사용 중인 아이디입니다.',
+      message: available
+        ? '사용 가능한 아이디입니다.'
+        : '이미 사용 중인 아이디입니다.',
     };
   }
 
@@ -62,7 +85,9 @@ export class AuthController {  // 🔥 이 이름이 AuthModule이랑 매칭됨
     const available = await this.authService.checkNick(mb_nick);
     return {
       available,
-      message: available ? '사용 가능한 닉네임입니다.' : '이미 사용 중인 닉네임입니다.',
+      message: available
+        ? '사용 가능한 닉네임입니다.'
+        : '이미 사용 중인 닉네임입니다.',
     };
   }
 
@@ -89,21 +114,27 @@ export class AuthController {  // 🔥 이 이름이 AuthModule이랑 매칭됨
     }
   }
 
-  // 🔍 아이디 찾기
+  // 🔍 아이디 찾기 (이름 + 휴대폰번호 일치 시, 아이디를 화면에만 보여줌)
   @Post('find-id')
   async findId(@Body() dto: FindIdDto) {
-    const result = await this.authService.findId(dto.name, dto.phone);
+    const { dashed } = this.normalizePhone(dto.phone);
+
+    const result = await this.authService.findId(dto.name, dashed);
+
     return {
       success: true,
       ...result, // maskedUserId
-      message: '입력하신 휴대폰 번호로 아이디 정보를 전송했습니다.',
+      message: '입력하신 정보와 일치하는 아이디입니다.',
     };
   }
 
   // 📲 비밀번호 찾기 - 1단계: SMS 코드 요청
   @Post('password/sms/request')
   async requestPasswordSms(@Body() dto: PasswordSmsRequestDto) {
-    await this.authService.requestPasswordSms(dto.mb_id, dto.phone);
+    const { digits, dashed } = this.normalizePhone(dto.phone);
+
+    await this.authService.requestPasswordSms(dto.mb_id, dashed, digits);
+
     return {
       success: true,
       message: '인증번호를 발송했습니다.',

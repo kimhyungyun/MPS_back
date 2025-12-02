@@ -1,40 +1,42 @@
-// src/notices/notices.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNoticeDto } from './dto/create-notice.dto';
 import { UpdateNoticeDto } from './dto/update-notice.dto';
+import { post_category } from '@prisma/client';
 
 @Injectable()
 export class NoticesService {
   constructor(private prisma: PrismaService) {}
 
   // 🔹 공지 생성
-  async create(createNoticeDto: CreateNoticeDto) {
-    const {
-      title,
-      content,
-      coverImageUrl,
-      attachments,
-      is_important,
-    } = createNoticeDto;
+  async create(createNoticeDto: CreateNoticeDto, userId: number | null) {
+    console.log(
+      '>>> [NoticesService.create] dto:',
+      createNoticeDto,
+      'userId:',
+      userId,
+    );
 
-    return this.prisma.$transaction(async (tx) => {
+    try {
       // 1) post 생성
-      const post = await tx.post.create({
+      const post = await this.prisma.post.create({
         data: {
-          title,
-          content,
-          category: 'notice',
-          userId: null,                     // 나중에 JWT에서 user 꺼내서 넣고 싶으면 여기 수정
-          coverImageUrl: coverImageUrl ?? null,
-          is_important: is_important ?? false,
+          title: createNoticeDto.title,
+          content: createNoticeDto.content,
+          category: post_category.notice, // ✅ enum
+          userId, // 관리자 mb_no (null 가능)
+          coverImageUrl: createNoticeDto.coverImageUrl ?? null,
+          is_important: createNoticeDto.is_important ?? false,
         },
       });
 
-      // 2) 첨부파일 생성
-      if (attachments && attachments.length > 0) {
-        await tx.post_attachment.createMany({
-          data: attachments.map((file) => ({
+      // 2) 첨부파일 생성 (있으면)
+      if (
+        Array.isArray(createNoticeDto.attachments) &&
+        createNoticeDto.attachments.length > 0
+      ) {
+        await this.prisma.post_attachment.createMany({
+          data: createNoticeDto.attachments.map((file) => ({
             postId: post.id,
             fileName: file.fileName,
             fileUrl: file.fileUrl,
@@ -44,36 +46,48 @@ export class NoticesService {
         });
       }
 
-      // 3) 첨부 포함해서 다시 조회
-      return tx.post.findUnique({
+      // 3) 최종 조회
+      const result = await this.prisma.post.findUnique({
         where: { id: post.id },
         include: {
           attachments: true,
+          g5_member: true,
         },
       });
-    });
+
+      console.log('>>> [NoticesService.create] result:', result);
+      return result;
+    } catch (e) {
+      console.error('>>> [NoticesService.create] error:', e);
+      throw new InternalServerErrorException('Failed to create notice');
+    }
   }
 
   // 🔹 공지 리스트
   async findAll() {
+    console.log('>>> [NoticesService.findAll]');
     return this.prisma.post.findMany({
       where: {
-        category: 'notice',
+        category: post_category.notice,
       },
       orderBy: {
         created_at: 'desc',
       },
       include: {
         attachments: true,
-        g5_member: true,  // 작성자 이름 필요하면 사용 (mb_name)
+        g5_member: true,
       },
     });
   }
 
   // 🔹 공지 상세
   async findOne(id: number) {
-    return this.prisma.post.findUnique({
-      where: { id },
+    console.log('>>> [NoticesService.findOne] id:', id);
+    return this.prisma.post.findFirst({
+      where: {
+        id,
+        category: post_category.notice,
+      },
       include: {
         attachments: true,
         g5_member: true,
@@ -83,35 +97,67 @@ export class NoticesService {
 
   // 🔹 공지 수정
   async update(id: number, updateNoticeDto: UpdateNoticeDto) {
-    const { attachments, ...rest } = updateNoticeDto;
+    console.log(
+      '>>> [NoticesService.update] id:',
+      id,
+      'dto:',
+      updateNoticeDto,
+    );
 
-    return this.prisma.$transaction(async (tx) => {
+    // 🔥 프론트에서 보내는 구조 기준:
+    // {
+    //   title?: string;
+    //   content?: string;
+    //   is_important?: boolean;
+    //   coverImageUrl?: string;
+    //   attachments?: { id?, fileName, fileUrl, fileSize?, mimeType? }[];
+    //   deleteAttachmentIds?: number[];   // (지금은 안 써도 됨)
+    //   removeCoverImage?: boolean;
+    // }
+    const { attachments, deleteAttachmentIds, removeCoverImage, ...rest } =
+      updateNoticeDto as any;
+
+    try {
       // 1) post 기본 정보 수정
-      const post = await tx.post.update({
+      const data: any = {};
+
+      if (rest.title !== undefined) {
+        data.title = rest.title;
+      }
+      if (rest.content !== undefined) {
+        data.content = rest.content;
+      }
+
+      // ✅ 중요 여부 (snake_case 사용)
+      if (rest.is_important !== undefined) {
+        data.is_important = rest.is_important;
+      }
+
+      // ✅ 커버 이미지 처리
+      // - removeCoverImage === true 면 무조건 null 로 세팅
+      // - 아니고 coverImageUrl 이 넘어오면 그 값으로 세팅
+      if (removeCoverImage) {
+        data.coverImageUrl = null;
+      } else if (rest.coverImageUrl !== undefined) {
+        data.coverImageUrl = rest.coverImageUrl ?? null;
+      }
+
+      const post = await this.prisma.post.update({
         where: { id },
-        data: {
-          // rest 안에 title, content, coverImageUrl, is_important 들어있음
-          title: rest.title,
-          content: rest.content,
-          coverImageUrl: rest.coverImageUrl ?? null,
-          // undefined면 필드 안 바뀌게 하기 위해 조건부로만 넣고 싶으면 아래처럼도 가능
-          ...(rest.is_important !== undefined && {
-            is_important: rest.is_important,
-          }),
-        },
+        data,
       });
 
-      // 2) 첨부파일 전체 교체 (단순하게)
+      // 2) 첨부파일 전체 교체 (프론트에서 "남길 것 + 새로 추가할 것" 전부 보내줌)
       if (attachments) {
-        // 기존 첨부 다 삭제
-        await tx.post_attachment.deleteMany({
+        // 🔥 기존 첨부 싹 지우고
+        await this.prisma.post_attachment.deleteMany({
           where: { postId: id },
         });
 
-        // 새 첨부 넣기
-        if (attachments.length > 0) {
-          await tx.post_attachment.createMany({
-            data: attachments.map((file) => ({
+        // 🔥 새로 온 목록 기준으로 다시 다 생성
+        if (Array.isArray(attachments) && attachments.length > 0) {
+          await this.prisma.post_attachment.createMany({
+            data: attachments.map((file: any) => ({
               postId: id,
               fileName: file.fileName,
               fileUrl: file.fileUrl,
@@ -122,20 +168,26 @@ export class NoticesService {
         }
       }
 
-      // 3) 수정된 결과 다시 조회
-      return tx.post.findUnique({
+      // 3) 최종 조회
+      const result = await this.prisma.post.findUnique({
         where: { id: post.id },
         include: {
           attachments: true,
           g5_member: true,
         },
       });
-    });
+
+      console.log('>>> [NoticesService.update] result:', result);
+      return result;
+    } catch (e) {
+      console.error('>>> [NoticesService.update] error:', e);
+      throw new InternalServerErrorException('Failed to update notice');
+    }
   }
 
   // 🔹 공지 삭제
   async remove(id: number) {
-    // post_attachment는 onDelete: Cascade라면 자동 삭제됨
+    console.log('>>> [NoticesService.remove] id:', id);
     return this.prisma.post.delete({
       where: { id },
     });

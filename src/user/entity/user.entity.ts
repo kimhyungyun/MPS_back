@@ -2,8 +2,6 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
 import { Lecture } from '@/lecture/entity/lecture.entity';
@@ -11,6 +9,7 @@ import { Payment } from '@/payment/entity/payment.entity';
 import { Post } from '@/post/entity/post.entity';
 import { Comment } from '@/comment/entity/comment.entity';
 import { UserRole } from '@/user/enum/user-role.enum';
+import { UserDevice } from '@/device/entities/user-device.entity'; // ✅ 추가
 
 @Entity('g5_member')
 export class User {
@@ -179,11 +178,13 @@ export class User {
   @Column({ length: 255 })
   mb_10: string;
 
-  // @CreateDateColumn({ type: 'timestamp' })
-  // created_at: Date;
+  // ✅ 새 필드: 마지막 로그인 시각
+  @Column({ type: 'datetime', nullable: true })
+  lastLoginAt: Date | null;
 
-  // @UpdateDateColumn({ type: 'timestamp' })
-  // updated_at: Date;
+  // ✅ 새 필드: 추가정보/동의 완료 여부
+  @Column({ type: 'tinyint', default: 0 })
+  isProfileCompleted: boolean;
 
   // 관계 유지
   @OneToMany(() => Lecture, (lecture) => lecture.instructor)
@@ -197,4 +198,8 @@ export class User {
 
   @OneToMany(() => Comment, (comment) => comment.user)
   comments: Comment[];
+
+  // ✅ 새 관계: 유저 ↔ 기기
+  @OneToMany(() => UserDevice, (device) => device.user)
+  devices: UserDevice[];
 }

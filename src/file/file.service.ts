@@ -1,188 +1,113 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { unlinkSync } from 'fs';
-import { join } from 'path';
-
-export interface FileRecord {
-  id: number;
-  title: string;
-  content: string;
-  category: string;
-  created_at: Date;
-  userId?: number;
-}
-
-interface CountResult {
-  total: bigint;
-}
+// src/file/file.service.ts
+import {
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class FileService {
-  constructor(private prisma: PrismaService) {}
+  private readonly s3: S3Client;
+  private readonly bucket: string;
 
-  async uploadFile(file: Express.Multer.File, userId: number) {
-    // 파일명 디코딩
-    const decodedFileName = decodeURIComponent(file.originalname);
-    
-    const result = await this.prisma.post.create({
-      data: {
-        title: decodedFileName,
-        content: `File: ${file.filename}, Type: ${file.mimetype}, Size: ${file.size}`,
-        category: 'free', // 파일은 free 카테고리로 저장
-        userId: userId
-      }
-    });
+  constructor() {
+    const region = process.env.AWS_REGION;
+    const accessKeyId =
+      process.env.AWS_ACCESS_KEY || process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey =
+      process.env.AWS_SECRET_KEY || process.env.AWS_SECRET_ACCESS_KEY;
+    const bucket = process.env.AWS_S3_BUCKET || 'mpsnotices';
 
-    return result;
-  }
+    console.log('🟡 AWS_REGION:', region);
+    console.log('🟡 ACCESS_KEY 존재?', !!accessKeyId);
+    console.log('🟡 SECRET_KEY 존재?', !!secretAccessKey);
+    console.log('🟡 S3_BUCKET:', bucket);
 
-  async getFiles(page: number = 1, limit: number = 10) {
-    const skip = (page - 1) * limit;
-    const [files, total] = await Promise.all([
-      this.prisma.post.findMany({
-        where: {
-          category: 'free' // 파일로 저장된 게시물만 조회
-        },
-        skip,
-        take: limit,
-        orderBy: {
-          created_at: 'desc'
-        },
-        include: {
-          g5_member: {
-            select: {
-              mb_name: true
-            }
-          }
-        }
-      }),
-      this.prisma.post.count({
-        where: {
-          category: 'free'
-        }
-      })
-    ]);
-
-    return {
-      files: files.map(file => ({
-        id: file.id,
-        name: file.title,
-        type: file.content.includes('Type:') ? file.content.split('Type: ')[1].split(',')[0] : '',
-        size: file.content.includes('Size:') ? file.content.split('Size: ')[1] : '',
-        upload_date: file.created_at,
-        download_url: file.content.includes('File:') ? file.content.split('File: ')[1].split(',')[0] : '',
-        uploader_id: file.userId,
-        uploader_name: file.g5_member?.mb_name
-      })),
-      total,
-      page,
-      totalPages: Math.ceil(Number(total) / limit),
-    };
-  }
-
-  async getFileById(id: number) {
-    const file = await this.prisma.post.findUnique({
-      where: { id },
-      include: {
-        g5_member: {
-          select: {
-            mb_name: true
-          }
-        }
-      }
-    });
-
-    if (!file || file.category !== 'free') {
-      throw new NotFoundException('File not found');
+    if (!region || !accessKeyId || !secretAccessKey) {
+      throw new Error(
+        'AWS 환경변수가 누락됨 (AWS_REGION / AWS_ACCESS_KEY / AWS_SECRET_KEY)',
+      );
     }
 
-    return {
-      id: file.id,
-      name: file.title,
-      type: file.content.includes('Type:') ? file.content.split('Type: ')[1].split(',')[0] : '',
-      size: file.content.includes('Size:') ? file.content.split('Size: ')[1] : '',
-      upload_date: file.created_at,
-      download_url: file.content.includes('File:') ? file.content.split('File: ')[1].split(',')[0] : '',
-      uploader_id: file.userId,
-      uploader_name: file.g5_member?.mb_name
-    };
-  }
+    this.bucket = bucket;
 
-  async deleteFile(id: number) {
-    const file = await this.prisma.post.findUnique({
-      where: { id }
+    this.s3 = new S3Client({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
     });
-
-    if (!file || file.category !== 'free') {
-      throw new NotFoundException('File not found');
-    }
-
-    // Delete file from filesystem
-    if (file.content.includes('File:')) {
-      const fileName = file.content.split('File: ')[1].split(',')[0];
-      const filePath = join(process.cwd(), 'uploads', fileName);
-      try {
-        unlinkSync(filePath);
-      } catch (error) {
-        console.error('Error deleting file from filesystem:', error);
-      }
-    }
-
-    // Delete file record from database
-    await this.prisma.post.delete({
-      where: { id }
-    });
-
-    return { message: 'File deleted successfully' };
   }
 
-  async searchFiles(query: string, page: number = 1, limit: number = 10) {
-    const skip = (page - 1) * limit;
-    const [files, total] = await Promise.all([
-      this.prisma.post.findMany({
-        where: {
-          category: 'free',
-          title: {
-            contains: query
-          }
-        },
-        skip,
-        take: limit,
-        orderBy: {
-          created_at: 'desc'
-        },
-        include: {
-          g5_member: {
-            select: {
-              mb_name: true
-            }
-          }
-        }
-      }),
-      this.prisma.post.count({
-        where: {
-          category: 'free',
-          title: {
-            contains: query
-          }
-        }
-      })
-    ]);
+  /**
+   * 실제 S3에 파일 업로드
+   */
+  async uploadNoticeFile(file: Express.Multer.File, folder: string) {
+    try {
+      // 🔥 확장자만 추출
+      const ext = file.originalname.split('.').pop();
 
-    return {
-      files: files.map(file => ({
-        id: file.id,
-        name: file.title,
-        type: file.content.includes('Type:') ? file.content.split('Type: ')[1].split(',')[0] : '',
-        size: file.content.includes('Size:') ? file.content.split('Size: ')[1] : '',
-        upload_date: file.created_at,
-        download_url: file.content.includes('File:') ? file.content.split('File: ')[1].split(',')[0] : '',
-        uploader_id: file.userId,
-        uploader_name: file.g5_member?.mb_name
-      })),
-      total,
-      page,
-      totalPages: Math.ceil(Number(total) / limit),
-    };
+      // 🔥 UUID 기반 안전한 key 생성
+      const key = `${folder}/${Date.now()}-${uuidv4()}.${ext}`;
+
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        }),
+      );
+
+      return {
+        key, // DB에는 이 key를 저장
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      };
+    } catch (err) {
+      console.error('S3 upload error:', err);
+      throw new InternalServerErrorException('S3 업로드 중 오류 발생');
+    }
   }
-} 
+
+  /**
+   * 다운로드용 presigned GET URL
+   */
+  async getPresignedUrl(key: string, expiresIn = 600) {
+    try {
+      // 🔥 key에서 원래 파일명 복원
+      const lastPart = key.split('/').pop() ?? '';
+      const encodedName = lastPart.split('-').slice(1).join('-'); // 타임스탬프- 이후
+      const fileName = encodedName
+        ? decodeURIComponent(encodedName)
+        : 'download';
+
+      const contentDisposition = `attachment; filename="${encodeURIComponent(
+        fileName,
+      )}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+
+      const command = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ResponseContentDisposition: contentDisposition, // 👈 무조건 다운로드 + 예쁜 이름
+      });
+
+      const url = await getSignedUrl(this.s3, command, { expiresIn });
+
+      return { url };
+    } catch (err) {
+      console.error('S3 presigned error:', err);
+      throw new InternalServerErrorException(
+        '프리사인드 URL 생성 오류',
+      );
+    }
+  }
+}

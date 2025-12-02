@@ -1,27 +1,19 @@
+// src/file/file.module.ts
 import { Module } from '@nestjs/common';
-
-import { FileService } from './file.service';
-import { PrismaModule } from '../prisma/prisma.module';
 import { MulterModule } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { memoryStorage } from 'multer';
 import { FileController } from './file.controller';
+import { FileService } from './file.service';
 
 @Module({
   imports: [
-    PrismaModule,
+    // 디스크 말고 메모리 저장: file.buffer 사용해서 바로 S3로 보냄
     MulterModule.register({
-      storage: diskStorage({
-        destination: join(process.cwd(), 'uploads'),
-        filename: (req, file, callback) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-          callback(null, `${uniqueSuffix}${extname(file.originalname)}`);
-        },
-      }),
+      storage: memoryStorage(),
     }),
   ],
   controllers: [FileController],
   providers: [FileService],
   exports: [FileService],
 })
-export class FileModule {} 
+export class FileModule {}
