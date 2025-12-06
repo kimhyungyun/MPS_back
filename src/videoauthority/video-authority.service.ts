@@ -2,13 +2,12 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserVideoAuthorityDto } from './dto/update-user-video-authority-dto';
-import { ClassGroup } from '../lecture/enum/class-group.enum';
-import { LectureType } from '../lecture/enum/lecture-type.enum';
 
 @Injectable()
 export class VideoAuthorityService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // 유저별 권한 목록
   async getByUserId(userId: number) {
     return this.prisma.videoAuthority.findMany({
       where: { userId },
@@ -16,93 +15,96 @@ export class VideoAuthorityService {
     });
   }
 
-  /**
-   * 유저의 권한 세트를 한 번에 갈아끼우는 함수
-   * - classGroups: ['A', 'S']
-   * - lectureTypes: ['packageA', 'packageC', 'packageD']
-   */
+  // 유저 권한 전체 교체
   async updateUserAuthorities(dto: UpdateUserVideoAuthorityDto) {
     const { userId } = dto;
 
     const classGroups = dto.classGroups ?? [];
-    const lectureTypes = dto.lectureTypes ?? [];
+    const videoTypes = dto.videoTypes ?? [];
 
-    // 일단 이 유저 권한 싹 삭제
+    console.log('🔥 [Service] updateUserAuthorities input:', {
+      userId,
+      classGroups,
+      videoTypes,
+    });
+
+    // 기존 권한 삭제
     await this.prisma.videoAuthority.deleteMany({
       where: { userId },
     });
 
     const dataToCreate = [
-      // 반 권한
       ...classGroups.map((cg) => ({
         userId,
-        classGroup: cg,
+        classGroup: cg as any,
         type: null,
       })),
-      // 패키지/단일 권한
-      ...lectureTypes.map((lt) => ({
+      ...videoTypes.map((vt) => ({
         userId,
         classGroup: null,
-        type: lt,
+        type: vt as any,
       })),
     ];
 
+    console.log('🔥 [Service] dataToCreate:', dataToCreate);
+
     if (dataToCreate.length === 0) {
+      console.log('⚠️ [Service] dataToCreate length = 0, 아무 것도 안 넣음');
       return [];
     }
 
-    await this.prisma.videoAuthority.createMany({
+    const result = await this.prisma.videoAuthority.createMany({
       data: dataToCreate,
       skipDuplicates: true,
     });
+
+    console.log('✅ [Service] createMany result:', result);
 
     return this.getByUserId(userId);
   }
 
   async remove(id: number) {
-    return this.prisma.videoAuthority.delete({
-      where: { id },
-    });
+    return this.prisma.videoAuthority.delete({ where: { id } });
   }
 
+  // 강의 시청 권한 체크
   async canWatchLecture(userId: number, lectureId: number): Promise<boolean> {
     const lecture = await this.prisma.lecture.findUnique({
       where: { id: lectureId },
-      select: {
-        classGroup: true,
-        type: true,
-      },
+      select: { classGroup: true, type: true },
     });
 
     if (!lecture) return false;
 
-    const orConditions: any[] = [];
-
-    if (lecture.classGroup) {
-      orConditions.push({ classGroup: lecture.classGroup });
-    }
-
-    if (lecture.type) {
-      orConditions.push({ type: lecture.type });
-    }
-
-    if (orConditions.length === 0) {
-      return true; // 제한 없는 강의로 간주하고 싶으면
-    }
-
-    const count = await this.prisma.videoAuthority.count({
-      where: {
-        userId,
-        OR: orConditions,
-      },
+    const authorities = await this.prisma.videoAuthority.findMany({
+      where: { userId },
+      select: { classGroup: true, type: true },
     });
 
-    return count > 0;
+    if (authorities.length === 0) return false;
+
+    const allowedClassGroups: string[] = authorities
+      .map((a) => a.classGroup)
+      .filter((v): v is string => !!v);
+
+    const allowedTypes: string[] = authorities
+      .map((a) => a.type)
+      .filter((v): v is string => !!v);
+
+    const matchClassGroup =
+      lecture.classGroup &&
+      allowedClassGroups.includes(lecture.classGroup as unknown as string);
+
+    const matchType =
+      lecture.type &&
+      allowedTypes.includes(lecture.type as unknown as string);
+
+    return !!(matchClassGroup || matchType);
   }
 
   async hasAuthority(
     userId: number,
-    opts: { classGroup?: ClassGroup; type?: LectureType },
+    opts: { classGroup?: string; type?: string },
   ): Promise<boolean> {
     const { classGroup, type } = opts;
 

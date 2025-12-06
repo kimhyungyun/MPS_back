@@ -159,11 +159,15 @@ export class UserService {
     });
   }
 
-  async findByNameAndPhone(name: string, phone: string): Promise<User | null> {
+  // 🔍 아이디 찾기용: 이름 + 이메일
+  async findByNameAndEmail(
+    name: string,
+    email: string,
+  ): Promise<User | null> {
     return this.userRepository.findOne({
       where: {
         mb_name: name,
-        mb_hp: phone,
+        mb_email: email,
       },
     });
   }

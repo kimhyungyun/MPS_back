@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
-import * as bcrypt from 'bcrypt';
+  import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { SmsService } from './sms.service';
@@ -193,8 +193,11 @@ export class AuthService {
 
   // -------------------- 아이디 찾기 / 비번 찾기 --------------------
 
-  async findId(name: string, phone: string) {
-    const user = await this.userService.findByNameAndPhone(name, phone);
+  // 🔍 아이디 찾기: 이름 + 이메일
+  async findId(name: string, email: string) {
+    // UserService 쪽에 이 메서드 구현 필요
+    // 예: findByNameAndEmail(name: string, email: string)
+    const user = await this.userService.findByNameAndEmail(name, email);
 
     if (!user) {
       throw new NotFoundException('일치하는 회원 정보를 찾을 수 없습니다.');

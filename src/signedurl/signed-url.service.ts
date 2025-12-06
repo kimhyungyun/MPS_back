@@ -31,12 +31,15 @@ export class SignedUrlService {
     return this.cleanKey(str).replace(/\.m3u8$/i, '');
   }
 
-  // ✅ CloudFront Signed Cookie 정책 단일 Statement 버전
+  // ----------------------------------------------------------
+  // CloudFront Policy
+  //  prefix: https://domain/folder/name*
+  // ----------------------------------------------------------
+
   private buildPolicy(folder: string, name: string, expiresAt: number) {
     const f = this.cleanKey(folder);
     const n = this.cleanName(name);
 
-    // master + variants + ts 전체 포함하는 prefix
     const resourcePrefix = `https://${this.cloudfrontDomain}/${f}/${n}`;
 
     return JSON.stringify({
@@ -50,6 +53,10 @@ export class SignedUrlService {
       ],
     });
   }
+
+  // ----------------------------------------------------------
+  // Signed Cookie 발급
+  // ----------------------------------------------------------
 
   async setCloudFrontSignedCookie(res: Response, folder: string, name: string) {
     const expiresAt = Math.floor(Date.now() / 1000) + this.ttlSec;
@@ -75,6 +82,10 @@ export class SignedUrlService {
     res.cookie('CloudFront-Signature', cookies['CloudFront-Signature'], opt);
     res.cookie('CloudFront-Key-Pair-Id', cookies['CloudFront-Key-Pair-Id'], opt);
   }
+
+  // ----------------------------------------------------------
+  // HLS stream URL 만들기
+  // ----------------------------------------------------------
 
   buildStreamUrl(folder: string, name: string) {
     return `${this.cloudfrontUrl}/${this.cleanKey(folder)}/${this.cleanName(name)}.m3u8`;

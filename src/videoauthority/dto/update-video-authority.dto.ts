@@ -1,8 +1,5 @@
-import {
-  IsInt,
-  IsEnum,
-  IsOptional,
-} from 'class-validator';
+// src/video-authority/dto/update-video-authority.dto.ts
+import { IsEnum, IsOptional } from 'class-validator';
 import { ClassGroup } from '../../lecture/enum/class-group.enum';
 import { LectureType } from '../../lecture/enum/lecture-type.enum';
 

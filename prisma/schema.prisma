@@ -96,6 +96,9 @@ model g5_member {
   lecture           lecture[]
   payment           payment[]
   post              post[]
+
+  // 🔹 동영상 권한 관계
+  videoAuthorities  VideoAuthority[]
 }
 
 model lecture {
@@ -105,15 +108,11 @@ model lecture {
   price                            Int
   thumbnail_url                    String                             @db.VarChar(255)
 
-  // 🔹 DB에는 video_url 없음 → 제거
-  // video_url                      String                             @db.VarChar(255)
-
   type                             lecture_type                       @default(single)
   created_at                       DateTime                           @default(now()) @db.DateTime(6)
   categoryId                       Int?
   instructorId                     Int?
 
-  // 🔹 DB에 있는 컬럼들 반영
   video_folder                     String?                            @db.VarChar(255)
   video_name                       String?                            @db.VarChar(255)
 
@@ -123,14 +122,12 @@ model lecture {
   lecture_package_lectures_lecture lecture_package_lectures_lecture[]
   payment                          payment[]
 
-  // 🔹 DB: NOT NULL DEFAULT 'S'
   classGroup                       ClassGroup                         @default(S) @map("classGroup")
 
   @@map("lecture")
   @@index([instructorId], map: "FK_2ca61c8451b53ad2da3c5f6432a")
   @@index([categoryId], map: "FK_8cd71d8895fb3f82f399e605da0")
 }
-
 
 model lecture_category {
   id      Int       @id @default(autoincrement())
@@ -212,6 +209,23 @@ model post_attachment {
   @@index([postId])
 }
 
+model File {
+  id           Int          @id @default(autoincrement())
+  key          String       // S3 key (예: "dataroom/1733226530000-uuid-%ED%95%9C%EA%B8%80.pdf")
+  originalName String       // 원래 파일명 (업로드 당시 이름)
+  size         Int          // 바이트 단위 크기
+  mimeType     String       // 컨텐츠 타입 (application/pdf, image/png 등)
+  category     FileCategory // NOTICE / DATAROOM / OTHER
+
+  uploaderId   String       // 업로더 식별자 (mb_id 같은 것)
+  uploaderNick String?      // 업로더 닉네임
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // 유저 테이블 FK가 필요하면 여기 연결 가능
+}
+
 model PasswordReset {
   id         Int      @id @default(autoincrement())
   mb_id      String
@@ -224,6 +238,23 @@ model PasswordReset {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 }
+
+model VideoAuthority {
+  id         Int         @id @default(autoincrement())
+  userId     Int
+  classGroup ClassGroup?
+  type       lecture_type?
+  created_at DateTime    @default(now()) @db.DateTime(6)
+  updated_at DateTime    @updatedAt @db.DateTime(6)
+
+  user       g5_member   @relation(fields: [userId], references: [mb_no])
+
+  @@index([userId])
+  @@unique([userId, classGroup, type])
+  @@map("video_authority")
+}
+
+
 
 enum payment_paymentStatus {
   pending
@@ -260,4 +291,10 @@ enum lecture_type {
   packageC
   packageD
   packageE
+}
+
+enum FileCategory {
+  NOTICE    // 게시판 첨부
+  DATAROOM  // 자료실
+  OTHER     // 그 외 필요하면
 }

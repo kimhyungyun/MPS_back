@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   ValidateNested,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { NoticeAttachmentDto } from './notice-attachment.dto';
@@ -18,9 +19,10 @@ export class UpdateNoticeDto {
   @IsString()
   content?: string;
 
+  // 🔥 여기도 snake_case 로 통일 (프론트에서 is_important 로 보내도록)
   @IsOptional()
   @IsBoolean()
-  isImportant?: boolean; // 프론트에서 isImportant 로 보냄
+  is_important?: boolean;
 
   @IsOptional()
   @IsString()
@@ -32,12 +34,13 @@ export class UpdateNoticeDto {
   @Type(() => NoticeAttachmentDto)
   attachments?: NoticeAttachmentDto[];
 
-  // 🔥 프론트에서 보내는 "삭제할 첨부파일 id 목록"
+  // 삭제할 첨부파일 id 목록 (지금 서비스에서는 전체 교체 방식이라 안 써도 됨)
   @IsOptional()
   @IsArray()
+  @Type(() => Number)
   deleteAttachmentIds?: number[];
 
-  // 🔥 프론트에서 보내는 "기존 커버 이미지 삭제 여부"
+  // 기존 커버 이미지 삭제 여부
   @IsOptional()
   @IsBoolean()
   removeCoverImage?: boolean;

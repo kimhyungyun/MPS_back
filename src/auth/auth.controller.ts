@@ -114,12 +114,11 @@ export class AuthController {
     }
   }
 
-  // 🔍 아이디 찾기 (이름 + 휴대폰번호 일치 시, 아이디를 화면에만 보여줌)
+  // 🔍 아이디 찾기 (이름 + 이메일 일치 시, 아이디를 화면에만 보여줌)
   @Post('find-id')
   async findId(@Body() dto: FindIdDto) {
-    const { dashed } = this.normalizePhone(dto.phone);
-
-    const result = await this.authService.findId(dto.name, dashed);
+    // dto: { name: string; email: string; }
+    const result = await this.authService.findId(dto.name, dto.email);
 
     return {
       success: true,

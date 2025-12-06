@@ -63,7 +63,12 @@ export class NoticesController {
     @Param('id') id: string,
     @Body() updateNoticeDto: UpdateNoticeDto,
   ) {
-    console.log('>>> [NoticesController.update] id:', id, 'body:', updateNoticeDto);
+    console.log(
+      '>>> [NoticesController.update] id:',
+      id,
+      'body:',
+      updateNoticeDto,
+    );
     return this.noticesService.update(+id, updateNoticeDto);
   }
 

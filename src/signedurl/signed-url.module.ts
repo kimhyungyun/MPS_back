@@ -1,14 +1,19 @@
+// src/signedurl/signed-url.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { SignedUrlService } from './signed-url.service';
 import { SignedUrlController } from './signed-url.controller';
 import { LectureModule } from '@/lecture/lecture.module';
+import { PrismaModule } from '@/prisma/prisma.module';
+import { VideoAuthorityModule } from '@/videoauthority/video-authority.module';
 
 @Module({
   imports: [
-    forwardRef(() => LectureModule), // ✅ 여기만 forwardRef로 감싸기
+    forwardRef(() => LectureModule),
+    VideoAuthorityModule,
+    PrismaModule,
   ],
-  providers: [SignedUrlService],
   controllers: [SignedUrlController],
+  providers: [SignedUrlService],
   exports: [SignedUrlService],
 })
 export class SignedUrlModule {}

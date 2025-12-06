@@ -1,3 +1,4 @@
+// src/video-authority/dto/video-authority-response.dto.ts
 import { ClassGroup } from '../../lecture/enum/class-group.enum';
 import { LectureType } from '../../lecture/enum/lecture-type.enum';
 

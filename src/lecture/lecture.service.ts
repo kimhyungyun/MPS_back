@@ -1,3 +1,4 @@
+// src/lecture/lecture.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -21,10 +22,15 @@ export class LectureService {
   ) {}
 
   // ✅ 강의 생성 시 instructor 자동 지정
-  async create(createLectureDto: CreateLectureDto, user: User): Promise<Lecture> {
+  async create(
+    createLectureDto: CreateLectureDto,
+    user: User,
+  ): Promise<Lecture> {
     const { categoryId, ...lectureData } = createLectureDto;
 
-    const category = await this.categoryRepository.findOneBy({ id: categoryId });
+    const category = await this.categoryRepository.findOneBy({
+      id: categoryId,
+    });
     if (!category) {
       throw new NotFoundException('Category not found');
     }
@@ -67,12 +73,17 @@ export class LectureService {
   }
 
   // ✅ 강의 수정
-  async update(id: number, updateLectureDto: UpdateLectureDto): Promise<Lecture> {
+  async update(
+    id: number,
+    updateLectureDto: UpdateLectureDto,
+  ): Promise<Lecture> {
     const lecture = await this.findOneWithRelations(id);
     const { categoryId, ...updateData } = updateLectureDto as CreateLectureDto;
 
     if (categoryId) {
-      const category = await this.categoryRepository.findOneBy({ id: categoryId });
+      const category = await this.categoryRepository.findOneBy({
+        id: categoryId,
+      });
       if (!category) {
         throw new NotFoundException('Category not found');
       }

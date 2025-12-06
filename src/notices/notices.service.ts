@@ -104,14 +104,14 @@ export class NoticesService {
       updateNoticeDto,
     );
 
-    // 🔥 프론트에서 보내는 구조 기준:
+    // 프론트에서 보내는 구조 기준:
     // {
     //   title?: string;
     //   content?: string;
     //   is_important?: boolean;
     //   coverImageUrl?: string;
-    //   attachments?: { id?, fileName, fileUrl, fileSize?, mimeType? }[];
-    //   deleteAttachmentIds?: number[];   // (지금은 안 써도 됨)
+    //   attachments?: { fileName, fileUrl, fileSize?, mimeType? }[];
+    //   deleteAttachmentIds?: number[];
     //   removeCoverImage?: boolean;
     // }
     const { attachments, deleteAttachmentIds, removeCoverImage, ...rest } =
@@ -134,7 +134,7 @@ export class NoticesService {
       }
 
       // ✅ 커버 이미지 처리
-      // - removeCoverImage === true 면 무조건 null 로 세팅
+      // - removeCoverImage === true 면 무조건 null
       // - 아니고 coverImageUrl 이 넘어오면 그 값으로 세팅
       if (removeCoverImage) {
         data.coverImageUrl = null;
@@ -147,14 +147,15 @@ export class NoticesService {
         data,
       });
 
-      // 2) 첨부파일 전체 교체 (프론트에서 "남길 것 + 새로 추가할 것" 전부 보내줌)
+      // 2) 첨부파일 전체 교체
+      //   - 프론트에서 "남길 것 + 새로 추가" 전체를 attachments 로 보내준다는 가정
       if (attachments) {
-        // 🔥 기존 첨부 싹 지우고
+        // 기존 첨부 싹 지우고
         await this.prisma.post_attachment.deleteMany({
           where: { postId: id },
         });
 
-        // 🔥 새로 온 목록 기준으로 다시 다 생성
+        // 새로 온 목록 기준 다시 생성
         if (Array.isArray(attachments) && attachments.length > 0) {
           await this.prisma.post_attachment.createMany({
             data: attachments.map((file: any) => ({
@@ -167,6 +168,9 @@ export class NoticesService {
           });
         }
       }
+
+      // deleteAttachmentIds 를 활용한 부분 삭제 방식으로 바꾸고 싶으면
+      // 위 전체 교체 로직 대신 여기에서 deleteMany 조건에 id in [...] 넣어서 처리하면 됨
 
       // 3) 최종 조회
       const result = await this.prisma.post.findUnique({

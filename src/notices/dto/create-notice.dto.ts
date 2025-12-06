@@ -8,13 +8,14 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-// ✅ 첨부파일 DTO
+// ✅ 첨부파일 DTO (생성용)
 export class CreateNoticeAttachmentDto {
-
+  // 기존 첨부파일이면 id 들어올 수 있지만
+  // create 시에는 보통 안 씀 (옵션)
   @IsOptional()
   @IsNumber()
-  id?: number; // 기존 첨부파일이면 id 들어옴
-  
+  id?: number;
+
   @IsString()
   fileName: string;
 
@@ -40,7 +41,7 @@ export class CreateNoticeDto {
 
   @IsOptional()
   @IsBoolean()
-  is_important?: boolean;
+  is_important?: boolean; // 🔥 백엔드/DB 모두 snake_case 기준
 
   // ✅ 대표 이미지 (URL 기준)
   @IsOptional()

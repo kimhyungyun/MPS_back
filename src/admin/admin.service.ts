@@ -112,6 +112,7 @@ export class AdminService {
           take: pageSize,
           orderBy,
           select: {
+            mb_no: true,
             mb_id: true,
             mb_name: true,
             mb_nick: true,
