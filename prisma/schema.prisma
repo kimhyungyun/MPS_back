@@ -99,6 +99,7 @@ model g5_member {
 
   // 🔹 동영상 권한 관계
   videoAuthorities  VideoAuthority[]
+  videoDevices      VideoDevice[]
 }
 
 model lecture {
@@ -140,6 +141,9 @@ model lecture_package {
   name                             String                             @db.VarChar(255)
   price                            Int
   lecture_package_lectures_lecture lecture_package_lectures_lecture[]
+
+  // payment 와의 양방향 관계
+  payments                         payment[]                          @relation("PaymentLecturePackage")
 }
 
 model lecture_package_lectures_lecture {
@@ -153,43 +157,28 @@ model lecture_package_lectures_lecture {
   @@index([lecturePackageId], map: "IDX_7b163402722fc3ddc6af8ec503")
 }
 
-model payment {
-  id            Int                   @id @default(autoincrement())
-  amount        Int
-  paymentStatus payment_paymentStatus @default(pending)
-  paymentMethod payment_paymentMethod
-  created_at    DateTime              @default(now()) @db.DateTime(6)
-  userId        Int?
-  lectureId     Int?
-  lecture       lecture?              @relation(fields: [lectureId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_7c58ca1eceb0b74aa4ef4b21a6c")
-  g5_member     g5_member?            @relation(fields: [userId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_b046318e0b341a7f72110b75857")
-
-  @@index([lectureId], map: "FK_7c58ca1eceb0b74aa4ef4b21a6c")
-  @@index([userId], map: "FK_b046318e0b341a7f72110b75857")
-}
-
 model post {
-  id           Int              @id @default(autoincrement())
-  title        String           @db.VarChar(255)
-  content      String           @db.Text
-  category     post_category
-  created_at   DateTime         @default(now()) @db.DateTime(6)
-  userId       Int?
+  id            Int              @id @default(autoincrement())
+  title         String           @db.VarChar(255)
+  content       String           @db.Text
+  category      post_category
+  created_at    DateTime         @default(now()) @db.DateTime(6)
+  userId        Int?
 
   // 중요 여부
-  is_important Boolean          @default(false)
+  is_important  Boolean          @default(false)
 
   // 대표 이미지
-  coverImageUrl String?         @db.VarChar(500)
+  coverImageUrl String?          @db.VarChar(500)
 
   // 댓글
-  comment      comment[]
+  comment       comment[]
 
   // 첨부파일
-  attachments  post_attachment[]
+  attachments   post_attachment[]
 
   // 작성자
-  g5_member    g5_member?       @relation(fields: [userId], references: [mb_no])
+  g5_member     g5_member?       @relation(fields: [userId], references: [mb_no])
 
   @@index([userId], map: "FK_5c1cf55c308037b5aca1038a131")
 }
@@ -211,7 +200,7 @@ model post_attachment {
 
 model File {
   id           Int          @id @default(autoincrement())
-  key          String       // S3 key (예: "dataroom/1733226530000-uuid-%ED%95%9C%EA%B8%80.pdf")
+  key          String       // S3 key 
   originalName String       // 원래 파일명 (업로드 당시 이름)
   size         Int          // 바이트 단위 크기
   mimeType     String       // 컨텐츠 타입 (application/pdf, image/png 등)
@@ -254,7 +243,63 @@ model VideoAuthority {
   @@map("video_authority")
 }
 
+model VideoDevice {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  deviceId   String    // 브라우저에서 생성해서 보내는 기기 식별자 (localStorage 기반)
+  deviceName String?   // 기기명 (예: Chrome on Windows, iPhone Safari)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
 
+  user       g5_member @relation(fields: [userId], references: [mb_no])
+
+  @@index([userId])
+  @@unique([userId, deviceId])
+  @@map("video_device")
+}
+
+model DataroomFile {
+  id           Int          @id @default(autoincrement())
+  key          String       @unique
+  originalName String
+  size         Int?
+  mimeType     String
+  uploaderId   String
+  uploaderNick String?
+  createdAt    DateTime     @default(now())
+
+  kind         DataroomKind @default(DATA1)
+
+  @@index([uploaderId])
+  @@index([kind])
+}
+
+model payment {
+  id               Int                   @id @default(autoincrement())
+  amount           Int
+  paymentStatus    payment_paymentStatus @default(pending)
+  paymentMethod    payment_paymentMethod
+  created_at       DateTime              @default(now()) @db.DateTime(6)
+  userId           Int?
+  lectureId        Int?                  // 과거 단일 강의용. 지금은 안 써도 됨
+  lecture          lecture?              @relation(fields: [lectureId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_7c58ca1eceb0b74aa4ef4b21a6c")
+  g5_member        g5_member?            @relation(fields: [userId], references: [mb_no], onDelete: NoAction, onUpdate: NoAction, map: "FK_b046318e0b341a7f72110b75857")
+
+  // 🔹 Toss 결제 연동용 필드
+  orderId          String                @unique @db.VarChar(100)   // PG에 넘기는 주문번호
+  paymentKey       String?               @unique @db.VarChar(200)   // Toss paymentKey
+  provider         String                @default("TOSS") @db.VarChar(50)
+  approvedAt       DateTime?             @db.DateTime(6)
+  receiptUrl       String?               @db.VarChar(500)
+
+  // 🔹 어떤 패키지를 산 건지 (실제 판매 단위)
+  lecturePackageId Int?
+  lecture_package  lecture_package?      @relation("PaymentLecturePackage", fields: [lecturePackageId], references: [id])
+
+  @@index([lectureId], map: "FK_7c58ca1eceb0b74aa4ef4b21a6c")
+  @@index([userId], map: "FK_b046318e0b341a7f72110b75857")
+  @@index([lecturePackageId])
+}
 
 enum payment_paymentStatus {
   pending
@@ -297,4 +342,9 @@ enum FileCategory {
   NOTICE    // 게시판 첨부
   DATAROOM  // 자료실
   OTHER     // 그 외 필요하면
+}
+
+enum DataroomKind {
+  DATA1
+  DATA2
 }

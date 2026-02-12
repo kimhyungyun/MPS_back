@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config'; // ✅ 추가
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import typeOrmConfig from './config/typeorm.config';
 
@@ -14,10 +14,13 @@ import { NoticesModule } from './notices/notices.module';
 import { SignedUrlModule } from './signedurl/signed-url.module';
 import { DevicesModule } from './device/devices.module';
 import { VideoAuthorityModule } from './videoauthority/video-authority.module';
+import { DataroomModule } from './dataroom/dataroom.module';
+import { LecturePackagesModule } from './lecture-packages/lecture-packages.module';
+import { PaymentsModule } from './payment/payments.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({isGlobal: true}), 
+    ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot(typeOrmConfig),
     PrismaModule,
     AdminModule,
@@ -30,6 +33,9 @@ import { VideoAuthorityModule } from './videoauthority/video-authority.module';
     SignedUrlModule,
     DevicesModule,
     VideoAuthorityModule,
+    DataroomModule,
+    LecturePackagesModule,
+    PaymentsModule
   ],
 })
 export class AppModule {}

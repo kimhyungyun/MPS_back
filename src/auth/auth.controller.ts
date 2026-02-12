@@ -23,11 +23,6 @@ import { PasswordResetDto } from './dto/password-reset.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  /**
-   * 휴대폰 번호 정규화
-   * - digits: 01012345678 (숫자만)
-   * - dashed: 010-1234-5678 (DB 저장/검색용)
-   */
   private normalizePhone(phone: string) {
     const raw = phone ?? '';
     const digits = raw.replace(/\D/g, '');
@@ -91,22 +86,37 @@ export class AuthController {
     };
   }
 
-  // 내 프로필 조회
+  // ✅ 내 프로필 조회 (회원가입 필드 포함)
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   async getProfile(@Request() req) {
     try {
       const user = await this.authService.getProfile(req.user.mb_id);
-      const mbLevel = Number(user.mb_level);
+
+      const mbLevel = Number(user.mb_level ?? 0);
 
       return {
         success: true,
         data: {
+          // 공통
+          mb_no: (user as any).mb_no ?? null,
           mb_id: user.mb_id,
-          mb_name: user.mb_name,
-          mb_nick: user.mb_nick,
           mb_level: mbLevel,
           isAdmin: mbLevel >= 8,
+
+          // 회원가입 필드들
+          mb_name: (user as any).mb_name ?? null,
+          mb_nick: (user as any).mb_nick ?? null,
+          mb_email: (user as any).mb_email ?? null,
+          mb_hp: (user as any).mb_hp ?? null,
+
+          mb_sex: (user as any).mb_sex ?? null,
+          mb_birth: (user as any).mb_birth ?? null,
+
+          mb_school: (user as any).mb_school ?? null,
+          mb_zip1: (user as any).mb_zip1 ?? null,
+          mb_addr1: (user as any).mb_addr1 ?? null,
+          mb_addr2: (user as any).mb_addr2 ?? null,
         },
       };
     } catch {
@@ -114,15 +124,14 @@ export class AuthController {
     }
   }
 
-  // 🔍 아이디 찾기 (이름 + 이메일 일치 시, 아이디를 화면에만 보여줌)
+  // 🔍 아이디 찾기
   @Post('find-id')
   async findId(@Body() dto: FindIdDto) {
-    // dto: { name: string; email: string; }
     const result = await this.authService.findId(dto.name, dto.email);
 
     return {
       success: true,
-      ...result, // maskedUserId
+      ...result,
       message: '입력하신 정보와 일치하는 아이디입니다.',
     };
   }

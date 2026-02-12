@@ -15,21 +15,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
-    console.log('🔥 JWT PAYLOAD:', payload);
+async validate(payload: any) {
+  const user = await this.userService.findByMbId(payload.mb_id);
+  if (!user) throw new UnauthorizedException();
 
-    const user = await this.userService.findByMbId(payload.mb_id);
-    if (!user) {
-      throw new UnauthorizedException();
-    }
+  return {
+    userId: user.id,      // ✅ TypeORM User PK
+    mb_id: user.mb_id,
+    mb_level: user.mb_level,
+    mb_nick: user.mb_nick,
+  };
+}
 
-    // ❗ 여기서 PK를 userId 라는 이름으로 묶어서 리턴
-    //  - user.id 가 실제 PK라고 가정
-    return {
-      userId: user.id,          // ✅ 이걸로 통일
-      mb_id: user.mb_id,
-      mb_level: user.mb_level,
-      mb_nick: user.mb_nick,
-    };
-  }
+
 }

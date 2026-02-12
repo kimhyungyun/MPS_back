@@ -1,19 +1,9 @@
-import { IsString, IsNotEmpty, IsNumber, IsEnum } from 'class-validator';
-import { PaymentMethod } from '../enum/payment-method.enum';
+import { Type } from 'class-transformer';
+import { IsInt, Min } from 'class-validator';
 
 export class CreatePaymentDto {
-  @IsString()
-  @IsNotEmpty()
-  userId: string;
-
-  @IsNumber()
-  @IsNotEmpty()
-  lectureId: number;
-
-  @IsNumber()
-  @IsNotEmpty()
-  amount: number;
-
-  @IsEnum(PaymentMethod)
-  paymentMethod: PaymentMethod;
+  @Type(() => Number)
+  @IsInt({ message: 'lecturePackageId는 정수여야 합니다.' })
+  @Min(1, { message: 'lecturePackageId는 1 이상이어야 합니다.' })
+  lecturePackageId!: number;
 }

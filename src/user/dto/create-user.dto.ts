@@ -1,10 +1,13 @@
-import { IsString, IsNotEmpty, IsOptional, Length, IsEmail, IsEnum, IsBoolean, Equals } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, Length, IsEmail, IsEnum, IsBoolean, Equals, Matches } from 'class-validator';
 import { UserRole } from '../enum/user-role.enum';
 
 export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   @Length(4, 20)
+  @Matches(/^[a-zA-Z0-9]+$/, {
+    message: '아이디에는 특수문자를 사용할 수 없습니다. (영문/숫자만 가능)',
+  })
   mb_id: string;
 
   @IsString()
@@ -100,4 +103,8 @@ export class CreateUserDto {
   @IsBoolean()
   @Equals(true, { message: '개인정보 수집 · 이용 동의(필수)에 체크해야 합니다.' })
   agreePrivacy: boolean;
+
+  @IsBoolean()
+  @Equals(true, { message: '이용약관 동의(필수)에 체크해야 합니다.' })
+  agreeTerms: boolean;
 }

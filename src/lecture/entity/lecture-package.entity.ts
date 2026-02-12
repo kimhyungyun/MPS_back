@@ -4,10 +4,13 @@ import {
   Column,
   ManyToMany,
   JoinTable,
+  OneToMany,
 } from 'typeorm';
 import { Lecture } from './lecture.entity';
+import { Payment } from '@/payment/entity/payment.entity';
 
-@Entity()
+
+@Entity('lecture_package')
 export class LecturePackage {
   @PrimaryGeneratedColumn()
   id: number;
@@ -21,4 +24,8 @@ export class LecturePackage {
 
   @Column('int')
   price: number;
+
+  // ✅ 패키지 결제 기록
+  @OneToMany(() => Payment, (p) => p.lecturePackage)
+  payments: Payment[];
 }

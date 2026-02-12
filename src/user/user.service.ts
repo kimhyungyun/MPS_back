@@ -13,6 +13,15 @@ import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { User } from './entity/user.entity';
 import { UserRole } from './enum/user-role.enum';
 
+// ✅ JWT/인증에서 쓸 최소 유저 타입
+export type AuthUser = Pick<User, 'id' | 'mb_id' | 'mb_level' | 'mb_nick'>;
+
+// ✅ 로그인에서 쓸 최소 유저 타입 (password + 동의/로그인시각 포함)
+export type LoginUser = Pick<
+  User,
+  'id' | 'mb_id' | 'mb_password' | 'mb_level' | 'mb_nick' | 'lastLoginAt' | 'isProfileCompleted'
+>;
+
 @Injectable()
 export class UserService {
   constructor(
@@ -85,9 +94,9 @@ export class UserService {
       mb_profile: createUserDto.mb_profile || '',
       mb_open_date: today,
 
-      // ✅ 새 필드
-      lastLoginAt: now,         // 신규 회원은 가입 시점이 첫 로그인이라고 봄
-      isProfileCompleted: true, // 회원가입에서 이미 정보+동의 받으니까 true
+      // ✅ 신규 정책 필드
+      lastLoginAt: now,
+      isProfileCompleted: true,
     });
 
     return this.userRepository.save(user);
@@ -105,52 +114,53 @@ export class UserService {
     return user;
   }
 
-  async findByMbId(mb_id: string) {
+  /**
+   * ✅ 인증(JWT validate) 용: 비밀번호 필요 없음
+   * - 없으면 null 반환
+   */
+  async findByMbId(mb_id: string): Promise<AuthUser | null> {
+    const user = await this.userRepository.findOne({
+      where: { mb_id },
+      select: {
+        id: true,
+        mb_id: true,
+        mb_level: true,
+        mb_nick: true,
+      },
+    });
+
+    return user ?? null;
+  }
+
+  /**
+   * ✅ 로그인용: 반드시 mb_password + (needProfileUpdate 계산에 필요한 필드) 포함
+   */
+  async findByMbIdWithPassword(mb_id: string): Promise<LoginUser | null> {
     const user = await this.userRepository.findOne({
       where: { mb_id },
       select: {
         id: true,
         mb_id: true,
         mb_password: true,
-        mb_name: true,
-        mb_nick: true,
         mb_level: true,
-        mb_email: true,
-        mb_hp: true,
-        mb_sex: true,
-        mb_birth: true,
-        mb_zip1: true,
-        mb_zip2: true,
-        mb_addr1: true,
-        mb_addr2: true,
-        mb_point: true,
-        mb_memo: true,
-        mb_profile: true,
-        mb_signature: true,
-        mb_lost_certify: true,
-        mb_1: true,
-        mb_2: true,
-        mb_3: true,
-        mb_4: true,
-        mb_5: true,
-        mb_6: true,
-        mb_7: true,
-        mb_8: true,
-        mb_9: true,
-        mb_10: true,
-        mb_school: true,
-        mb_today_login: true,
-        // ✅ 새 필드도 함께 가져오게
+        mb_nick: true,
+
+        // ✅ 이 두개 없으면 needProfileUpdate가 항상 true로 튐
         lastLoginAt: true,
         isProfileCompleted: true,
       },
     });
 
-    if (!user) {
-      throw new NotFoundException('사용자를 찾을 수 없습니다.');
-    }
+    return user ?? null;
+  }
 
-    return user;
+  /**
+   * ✅ 아이디 존재 여부
+   */
+  async existsByMbId(mb_id: string): Promise<boolean> {
+    if (!mb_id) return false;
+    const count = await this.userRepository.count({ where: { mb_id } });
+    return count > 0;
   }
 
   async findByMbNick(mb_nick: string): Promise<User | null> {
@@ -159,11 +169,7 @@ export class UserService {
     });
   }
 
-  // 🔍 아이디 찾기용: 이름 + 이메일
-  async findByNameAndEmail(
-    name: string,
-    email: string,
-  ): Promise<User | null> {
+  async findByNameAndEmail(name: string, email: string): Promise<User | null> {
     return this.userRepository.findOne({
       where: {
         mb_name: name,
@@ -211,7 +217,6 @@ export class UserService {
     const { agreePrivacy, ...rest } = dto;
 
     if (!agreePrivacy) {
-      // 프론트에서 체크 안 하고 왔을 때 방어
       throw new BadRequestException('개인정보 수집 · 이용 동의가 필요합니다.');
     }
 
@@ -224,7 +229,6 @@ export class UserService {
     if (rest.mb_addr1 !== undefined) user.mb_addr1 = rest.mb_addr1;
     if (rest.mb_addr2 !== undefined) user.mb_addr2 = rest.mb_addr2;
 
-    // ✅ 새 정책 절차 완료
     user.isProfileCompleted = true;
 
     return this.userRepository.save(user);
@@ -264,12 +268,9 @@ export class UserService {
       if (updateUserDto.mb_certify) user.mb_certify = updateUserDto.mb_certify;
       if (updateUserDto.mb_dupinfo) user.mb_dupinfo = updateUserDto.mb_dupinfo;
       if (updateUserDto.mb_addr3) user.mb_addr3 = updateUserDto.mb_addr3;
-      if (updateUserDto.mb_addr_jibeon)
-        user.mb_addr_jibeon = updateUserDto.mb_addr_jibeon;
-      if (updateUserDto.mb_signature)
-        user.mb_signature = updateUserDto.mb_signature;
-      if (updateUserDto.mb_recommend)
-        user.mb_recommend = updateUserDto.mb_recommend;
+      if (updateUserDto.mb_addr_jibeon) user.mb_addr_jibeon = updateUserDto.mb_addr_jibeon;
+      if (updateUserDto.mb_signature) user.mb_signature = updateUserDto.mb_signature;
+      if (updateUserDto.mb_recommend) user.mb_recommend = updateUserDto.mb_recommend;
       if (updateUserDto.mb_profile) user.mb_profile = updateUserDto.mb_profile;
 
       return await this.userRepository.save(user);

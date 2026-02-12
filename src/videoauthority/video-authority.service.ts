@@ -125,4 +125,85 @@ export class VideoAuthorityService {
 
     return count > 0;
   }
+
+  // =================================
+  // 🔹 기기 관련 로직
+  // =================================
+
+  // 유저의 등록된 기기 목록 (최대 2개)
+  async getDevicesByUserId(userId: number) {
+    return this.prisma.videoDevice.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  // 유저 기기 전체 초기화
+  async resetUserDevices(userId: number) {
+    const deleted = await this.prisma.videoDevice.deleteMany({
+      where: { userId },
+    });
+    console.log('🧹 [Service] resetUserDevices:', { userId, deleted });
+    return deleted;
+  }
+
+  /**
+   * 재생 시도 시 호출:
+   *  - 이미 등록된 기기면 lastUsedAt 업데이트 후 통과
+   *  - 등록된 기기가 2개 미만이면 새 기기로 등록하고 통과
+   *  - 이미 2개 등록되어 있고 새 기기면 거절
+   */
+  async validateAndRegisterDevice(
+    userId: number,
+    deviceId: string,
+    deviceName?: string,
+  ) {
+    if (!deviceId) throw new BadRequestException('deviceId가 필요합니다.');
+
+    const devices = await this.prisma.videoDevice.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const existing = devices.find((d) => d.deviceId === deviceId);
+
+    if (existing) {
+      await this.prisma.videoDevice.update({
+        where: { id: existing.id },
+        data: {
+          lastUsedAt: new Date(),
+          deviceName: deviceName ?? existing.deviceName,
+        },
+      });
+
+      return {
+        allowed: true,
+        reason: 'EXISTING_DEVICE',
+        devices: await this.getDevicesByUserId(userId),
+      };
+    }
+
+    if (devices.length < 2) {
+      await this.prisma.videoDevice.create({
+        data: {
+          userId,
+          deviceId,
+          deviceName: deviceName ?? 'Unknown Device',
+        },
+      });
+
+      return {
+        allowed: true,
+        reason: 'NEW_DEVICE_REGISTERED',
+        devices: await this.getDevicesByUserId(userId),
+      };
+    }
+
+    // 이미 2대 꽉 차 있음
+    return {
+      allowed: false,
+      reason: 'DEVICE_LIMIT_EXCEEDED',
+      devices,
+    };
+  }
 }
