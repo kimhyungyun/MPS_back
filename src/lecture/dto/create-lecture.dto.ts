@@ -4,6 +4,8 @@ import {
   IsNumber,
   IsEnum,
   IsOptional,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { LectureType } from '../enum/lecture-type.enum';
@@ -12,11 +14,11 @@ import { ClassGroup } from '../enum/class-group.enum';
 export class CreateLectureDto {
   @IsString()
   @IsNotEmpty()
-  title: string;
+  title!: string;
 
   @IsString()
   @IsNotEmpty()
-  description: string;
+  description!: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -25,26 +27,41 @@ export class CreateLectureDto {
 
   @IsString()
   @IsNotEmpty()
-  thumbnail_url: string;
+  thumbnail_url!: string;
 
   @IsEnum(LectureType)
-  type: LectureType;
+  type!: LectureType;
 
   @Type(() => Number)
   @IsNumber()
-  categoryId: number;
+  categoryId!: number;
 
-  // 🔹 A/B/S
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  instructorId?: number;
+
   @IsOptional()
   @IsEnum(ClassGroup)
   classGroup?: ClassGroup;
 
-  // 🔹 비디오 폴더 (예: "math/level1")
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(3)
+  day?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  sortOrder?: number;
+
   @IsOptional()
   @IsString()
   video_folder?: string;
 
-  // 🔹 비디오 파일명 (예: "lesson1.m3u8")
   @IsOptional()
   @IsString()
   video_name?: string;

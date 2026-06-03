@@ -1,4 +1,3 @@
-// src/admin/admin.controller.ts
 import {
   Controller,
   Get,
@@ -17,27 +16,43 @@ type Range = 'day' | 'week' | 'month';
 type SortKey = 'name' | 'latest';
 type SortOrder = 'asc' | 'desc';
 
+type AuthorityFilter =
+  | 'all'
+  | 'hasAuthority'
+  | 'none'
+  | 'A'
+  | 'B'
+  | 'packageA'
+  | 'packageB'
+  | 'packageC'
+  | 'packageD'
+  | 'packageE';
+
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-// 🔥 여기만 변경
-@Roles(8) // mb_level >= 8 만 접근 가능
+@Roles(8)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('members')
   async getMembers(
     @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '10',
     @Query('search') search?: string,
     @Query('sortKey') sortKey?: SortKey,
     @Query('sortOrder') sortOrder: SortOrder = 'asc',
+    @Query('authority') authority: AuthorityFilter = 'all',
   ) {
     const pageNum = Number(page) || 1;
+    const pageSizeNum = Number(pageSize) || 10;
 
     const result = await this.adminService.getMembers(
       pageNum,
+      pageSizeNum,
       search,
       sortKey,
       sortOrder,
+      authority,
     );
 
     return {
@@ -52,6 +67,7 @@ export class AdminController {
     @Body('mb_level') mb_level: number,
   ) {
     const result = await this.adminService.updateMemberLevel(mb_id, mb_level);
+
     return {
       success: true,
       data: result,
@@ -71,5 +87,28 @@ export class AdminController {
         : 'month';
 
     return this.adminService.getUserStats(safeRange);
+  }
+
+  @Get('payments')
+  async getPayments(
+    @Query('page') page: string = '1',
+    @Query('size') size: string = '20',
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+  ) {
+    const pageNum = Number(page) || 1;
+    const sizeNum = Number(size) || 20;
+
+    const result = await this.adminService.getPayments(
+      pageNum,
+      sizeNum,
+      status,
+      q,
+    );
+
+    return {
+      success: true,
+      data: result,
+    };
   }
 }

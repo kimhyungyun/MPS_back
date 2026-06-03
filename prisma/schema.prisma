@@ -125,6 +125,9 @@ model lecture {
 
   classGroup                       ClassGroup                         @default(S) @map("classGroup")
 
+  day                              Int?
+  sortOrder                        Int                                @default(0) @map("sort_order")
+
   @@map("lecture")
   @@index([instructorId], map: "FK_2ca61c8451b53ad2da3c5f6432a")
   @@index([categoryId], map: "FK_8cd71d8895fb3f82f399e605da0")

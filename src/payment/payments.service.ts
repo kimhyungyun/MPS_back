@@ -5,8 +5,8 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
+import { PrismaService } from '../prisma/prisma.service';
 import { payment_paymentStatus, payment_paymentMethod, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -15,8 +15,11 @@ export class PaymentsService {
 
   private readonly TOSS_CONFIRM_URL = 'https://api.tosspayments.com/v1/payments/confirm';
 
-  // ✅ B(결제위젯) 시크릿 키 env 이름 고정
+  // ✅ 결제위젯 시크릿 키 env
   private readonly SECRET_ENV_KEY = 'TOSS_WIDGET_SECRET_KEY';
+
+  // ✅ 주문 유효시간 (예: 30분)
+  private readonly ORDER_EXPIRE_MINUTES = 30;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -78,7 +81,6 @@ export class PaymentsService {
   private mapTossMethodToEnum(tossMethod?: string): payment_paymentMethod {
     const m = String(tossMethod ?? '').toUpperCase();
     if (m.includes('CARD')) return payment_paymentMethod.credit_card;
-    // 필요하면 계좌이체/가상계좌/휴대폰결제 등 매핑 확장
     return payment_paymentMethod.credit_card;
   }
 
@@ -87,13 +89,15 @@ export class PaymentsService {
     const { paymentKey, orderId, amount } = params;
 
     try {
+      if (!paymentKey || !orderId || !Number.isFinite(amount)) {
+        throw new BadRequestException('paymentKey/orderId/amount가 올바르지 않습니다.');
+      }
+
       const payment = await this.prisma.payment.findUnique({
         where: { orderId },
         include: {
           lecture_package: {
-            include: {
-              lecture_package_lectures_lecture: true,
-            },
+            include: { lecture_package_lectures_lecture: true },
           },
         },
       });
@@ -101,7 +105,7 @@ export class PaymentsService {
       if (!payment) throw new BadRequestException('존재하지 않는 주문입니다.');
       if (payment.amount !== amount) throw new BadRequestException('결제 금액이 주문 정보와 일치하지 않습니다.');
 
-      // ✅ 이미 완료된 주문이면 그대로 반환 (중복 confirm 방지)
+      // ✅ 상태 하드닝
       if (payment.paymentStatus === payment_paymentStatus.completed) {
         return {
           success: true,
@@ -110,8 +114,21 @@ export class PaymentsService {
           message: '이미 결제가 완료된 주문입니다.',
         };
       }
+      if (payment.paymentStatus !== payment_paymentStatus.pending) {
+        throw new BadRequestException(`승인할 수 없는 주문 상태입니다. (${payment.paymentStatus})`);
+      }
 
-      // ✅ B: 결제위젯 시크릿키 (live_gsk)
+      // ✅ 주문 유효시간 하드닝 (created_at)
+      const createdAt = payment.created_at; // Prisma 모델 필드명 그대로
+      if (createdAt) {
+        const ageMs = Date.now() - new Date(createdAt).getTime();
+        const expireMs = this.ORDER_EXPIRE_MINUTES * 60 * 1000;
+        if (ageMs > expireMs) {
+          throw new BadRequestException('유효시간이 지난 주문입니다. 다시 시도해주세요.');
+        }
+      }
+
+      // ✅ 결제위젯 시크릿키 (live_gsk)
       const secret = (process.env[this.SECRET_ENV_KEY] ?? '').trim();
       if (!secret) {
         throw new InternalServerErrorException(`${this.SECRET_ENV_KEY}가 서버에 없습니다.`);
@@ -119,7 +136,7 @@ export class PaymentsService {
 
       const authHeader = Buffer.from(`${secret}:`).toString('base64');
 
-      // Toss 승인
+      // ✅ Toss 승인(confirm)
       const res = await axios.post(
         this.TOSS_CONFIRM_URL,
         { paymentKey, orderId, amount },
@@ -137,7 +154,19 @@ export class PaymentsService {
 
       // ✅ 트랜잭션: 결제 완료 처리 + 수강권 부여
       await this.prisma.$transaction(async (tx) => {
-        // 1) payment 완료 처리
+        // 0) 트랜잭션 내에서 최신 상태 재확인(동시 confirm 방지)
+        const latest = await tx.payment.findUnique({
+          where: { orderId },
+          select: { paymentStatus: true, userId: true, lecturePackageId: true },
+        });
+
+        if (!latest) throw new BadRequestException('존재하지 않는 주문입니다.');
+        if (latest.paymentStatus === payment_paymentStatus.completed) return;
+        if (latest.paymentStatus !== payment_paymentStatus.pending) {
+          throw new BadRequestException(`승인할 수 없는 주문 상태입니다. (${latest.paymentStatus})`);
+        }
+
+        // 1) 결제 완료 처리
         await tx.payment.update({
           where: { orderId },
           data: {
@@ -149,21 +178,21 @@ export class PaymentsService {
           },
         });
 
-        // 2) 수강권 부여 (로그인 필수라면 payment.userId는 항상 들어올 가능성이 큼)
-        if (!payment.userId || !payment.lecturePackageId) return;
+        // 2) 수강권 부여 (주문에 저장된 userId 기준)
+        if (!latest.userId || !latest.lecturePackageId) return;
 
-        const links = payment.lecture_package?.lecture_package_lectures_lecture ?? [];
+        const pkg = await tx.lecture_package.findUnique({
+          where: { id: latest.lecturePackageId },
+          include: { lecture_package_lectures_lecture: true },
+        });
 
-        // ✅ enrollment에는 (userId, lectureId) 유니크가 없어서 upsert 불가
-        // => 존재 확인 후 없으면 create
+        const links = pkg?.lecture_package_lectures_lecture ?? [];
+
         for (const link of links) {
           const lectureId = link.lectureId;
 
           const exists = await tx.enrollment.findFirst({
-            where: {
-              userId: payment.userId,
-              lectureId,
-            },
+            where: { userId: latest.userId, lectureId },
             select: { id: true },
           });
 
@@ -171,7 +200,7 @@ export class PaymentsService {
 
           await tx.enrollment.create({
             data: {
-              userId: payment.userId,
+              userId: latest.userId,
               lectureId,
               progress: 0,
             },
@@ -190,20 +219,22 @@ export class PaymentsService {
     } catch (err: any) {
       this.logger.error('[confirmPayment] FAILED');
 
+      // ✅ 토스 에러면 이게 가장 중요
+      if (err?.response?.data) {
+        this.logger.error(`TossError: ${JSON.stringify(err.response.data)}`);
+        throw new BadRequestException(err.response.data);
+      }
+
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         this.logger.error(`PrismaKnownError code=${err.code}`);
         this.logger.error(`meta=${JSON.stringify(err.meta)}`);
       } else if (err instanceof Prisma.PrismaClientValidationError) {
         this.logger.error(`PrismaValidationError: ${err.message}`);
       } else {
-        this.logger.error(err?.response?.data ?? err?.stack ?? err?.message ?? err);
+        this.logger.error(err?.stack ?? err?.message ?? err);
       }
 
-      if (err?.response?.data) {
-        throw new BadRequestException(err.response.data);
-      }
       if (typeof err?.getStatus === 'function') throw err;
-
       throw new InternalServerErrorException('Internal server error');
     }
   }

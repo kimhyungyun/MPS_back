@@ -15,52 +15,64 @@ import { ClassGroup } from '../enum/class-group.enum';
 @Entity()
 export class Lecture {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  title: string;
+  title!: string;
 
   @Column('text')
-  description: string;
+  description!: string;
 
   @Column('int')
-  price: number;
+  price!: number;
 
   @Column()
-  thumbnail_url: string;
+  thumbnail_url!: string;
 
-  @Column({ nullable: true })
-  video_folder: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  video_folder!: string | null;
 
-  @Column({ nullable: true })
-  video_name: string;
-
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  video_name!: string | null;
 
   @Column({
     type: 'enum',
     enum: LectureType,
     default: LectureType.SINGLE,
   })
-  type: LectureType;
+  type!: LectureType;
 
-    @Column({
+  @Column({
     type: 'enum',
     enum: ClassGroup,
     default: ClassGroup.S,
   })
-  classGroup: ClassGroup;
+  classGroup!: ClassGroup;
+
+  @Column({
+    type: 'int',
+    nullable: true,
+  })
+  day!: number | null;
+
+  @Column({
+    name: 'sort_order',
+    type: 'int',
+    default: 0,
+  })
+  sortOrder!: number;
 
   @ManyToOne(() => LectureCategory, (category) => category.lectures, {
     eager: true,
   })
-  category: LectureCategory;
+  category!: LectureCategory;
 
   @CreateDateColumn()
-  created_at: Date;
+  created_at!: Date;
 
   @ManyToOne(() => User, (user) => user.lectures)
-  instructor: User;
+  instructor!: User;
 
   @OneToMany(() => Payment, (payment) => payment.lecture)
-  payments: Payment[];
+  payments!: Payment[];
 }
